@@ -26,6 +26,7 @@ def extract_all_audio_segments_from_single_file(audio_fn, df_fn, dest_path):
     segments_df.join(seg_path_col)
     segments_df.to_csv(df_fn, index=False)
 
+
 def audio_segments_extraction_serial(audio_df_list, dest_path):
     for audio_fn, df_fn in audio_df_list:
         extract_all_audio_segments_from_single_file(audio_fn, df_fn, dest_path)
