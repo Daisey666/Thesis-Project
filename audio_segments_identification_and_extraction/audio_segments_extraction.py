@@ -16,13 +16,11 @@ def extract_all_audio_segments_from_single_file(audio_fn, df_fn, dest_path):
     segments_df = pd.read_csv(df_fn, dtype={"start_time": int, "end_time": int, "class": str})
     file_names = []
     counter = 0
-    for row in segments_df.iterrows():
+    for start, end, c in segments_df.values:
         fn = dest_path + os.path.basename.split(audio_fn)[:-EXT_SIZE] + str(counter).zfill(Z_FILL_PARAM) + EXT
         file_names += fn
-        start = row[1]["start_time"]
-        end = row[1]["end_time"]
         wavfile.write(fn, sample_rate, signal[start, end])
-    seg_path_col = pd.DataFrame(data=file_names, columns=["segment_file"])
+    seg_path_col = pd.DataFrame(data=file_names, columns=["audio_segment_file"])
     segments_df.join(seg_path_col)
     segments_df.to_csv(df_fn, index=False)
 
@@ -39,7 +37,7 @@ def audio_segments_extraction_parallel(audio_df_list, dest_path, n):
 def extract_audio_segments(audio_info_df_fn, dest_path, parallel=False, n_jobs=-1):
     # TODO find better solution for destination paths
     df = pd.read_csv(audio_info_df_fn, dtype={"complete_event_file": str, "segmented_event_file": str, "segment_boundaries_df": str})
-    audio_df_list = [[x[1]["complete_event_file"], x[1]["segment_boundaries_df"]] for x in df.iterrows()]
+    audio_df_list = df[["complete_event_file", "segment_boundaries_df"]].values
     if parallel:
         audio_segments_extraction_parallel(audio_df_list, dest_path, n_jobs)
     else:

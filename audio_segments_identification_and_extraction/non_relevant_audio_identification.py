@@ -35,7 +35,7 @@ def complete_time_boundaries_df(audio_fn, df_fn):
     start = 0
     end = len(signal)
     segments_df = pd.read_csv(df_fn, dtype={"start_time": int, "end_time": int, "class": str})
-    seg_s_e_list = [[x[1]["start_time"], x[1]["end_time"]] for x in segments_df.iterrows()]
+    seg_s_e_list = segments_df[["start_time", "end_time"]].values
     non_relevant_segments = get_segments(start, end, seg_s_e_list)
     new_df = pd.DataFrame(data=non_relevant_segments, columns=["start_time", "end_time", "class"])
     segments_df.append(new_df, ignore_index=True)
@@ -53,7 +53,7 @@ def extract_time_boundaries_parallel(audio_df_list, n):
 
 def extract_non_relevant_segments_positions(audio_info_df_fn, parallel=False, n_jobs=-1):
     df = pd.read_csv(audio_info_df_fn, dtype={"complete_event_file": str, "segmented_event_file": str, "segment_boundaries_df": str})
-    audio_df_list = [[x[1]["complete_event_file"], x[1]["segment_boundaries_df"]] for x in df.iterrows()]
+    audio_df_list = df[["complete_event_file", "segment_boundaries_df"]].values
     if parallel:
         extract_time_boundaries_parallel(audio_df_list, n_jobs)
     else:
