@@ -38,7 +38,7 @@ def extract_info_from_complete_event_segments(df_fn, praat_parameters, dest_path
         info_file_names.append((pitch_file, pitch_tier_file, point_process_file, intensity_file, intensity_tier_file, voice_report_file))
         subprocess.call([PRAAT, RUN_OPTIONS, PRAAT_SCRIPT, wav_file, pitch_file, pitch_tier_file, point_process_file, intensity_file, intensity_tier_file, voice_report_file, str(praat_parameters.pitch_min), str(praat_parameters.pitch_max), str(praat_parameters.max_period_factor), str(praat_parameters.max_amplitude_factor), str(praat_parameters.silence_threshold), str(praat_parameters.voicing_thresholding), praat_parameters.subtract_mean])
     ext_info_cols = pd.DataFrame(data=info_file_names, columns=new_columns)
-    segments_df.join(ext_info_cols)
+    segments_df = segments_df.join(ext_info_cols)
     segments_df.to_csv(df_fn, index=False)
 
 

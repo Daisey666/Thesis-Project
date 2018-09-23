@@ -21,7 +21,7 @@ def extract_all_audio_segments_from_single_file(audio_fn, df_fn, dest_path):
         file_names += fn
         wavfile.write(fn, sample_rate, signal[start, end])
     seg_path_col = pd.DataFrame(data=file_names, columns=["audio_segment_file"])
-    segments_df.join(seg_path_col)
+    segments_df = segments_df.join(seg_path_col)
     segments_df.to_csv(df_fn, index=False)
 
 

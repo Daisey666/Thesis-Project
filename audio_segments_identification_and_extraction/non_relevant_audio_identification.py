@@ -38,7 +38,7 @@ def complete_time_boundaries_df(audio_fn, df_fn):
     seg_s_e_list = segments_df[["start_time", "end_time"]].values
     non_relevant_segments = get_segments(start, end, seg_s_e_list)
     new_df = pd.DataFrame(data=non_relevant_segments, columns=["start_time", "end_time", "class"])
-    segments_df.append(new_df, ignore_index=True)
+    segments_df = segments_df.append(new_df, ignore_index=True)
     segments_df.to_csv(df_fn, index=False)
 
 

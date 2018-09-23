@@ -22,11 +22,17 @@ def delete_pitch_ouliers_from_complete_event(df_fn, dest_path, n_sigma):
         pitch_values = np.concatenate((pitch_values, tmp_df["F0"].values))
     mean = np.mean(pitch_values, axis=0)
     sd = np.std(pitch_values, axis=0)
+    clean_pitch_tiers_list = []
     for pitch_tier in pitch_tier_list:
         tmp_df = pd.read_csv(pitch_tier, dtype={"Time": float, "F0": float})
         clean_pitch_tier_df_fn = dest_path + os.path.basename.split(pitch_tier)[:-TAB_EXT_SIZE] + CLEAN_PITCH_TIER
-        clean_pitch_tier_df = tmp_df.query("F0 >= mean - (n_sigma * sd) and F0 <= mean + (n_sigma * sd)")
+        clean_pitch_tiers_list.append(clean_pitch_tier_df_fn)
+        query = "F0 >= " + str(mean) + " - " + str(n_sigma * sd) + " and F0 <= " + str(mean) + " + " + str(n_sigma * sd)
+        clean_pitch_tier_df = tmp_df.query(query)
         clean_pitch_tier_df.to_csv(clean_pitch_tier_df_fn, index=False)
+    clean_pitch_tiers_col = pd.DataFrame(data=clean_pitch_tiers_list, columns=["clean_pitch_tier"])
+    segments_df.join(clean_pitch_tiers_col)
+    segments_df.to_csv(df_fn, index=False)
 
 
 def pitch_outliers_identification_serial(audio_df_list, dest_path, n_sigma):
