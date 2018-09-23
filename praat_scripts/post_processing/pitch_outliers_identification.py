@@ -31,7 +31,7 @@ def delete_pitch_ouliers_from_complete_event(df_fn, dest_path, n_sigma):
         clean_pitch_tier_df = tmp_df.query(query)
         clean_pitch_tier_df.to_csv(clean_pitch_tier_df_fn, index=False)
     clean_pitch_tiers_col = pd.DataFrame(data=clean_pitch_tiers_list, columns=["clean_pitch_tier"])
-    segments_df.join(clean_pitch_tiers_col)
+    segments_df = segments_df.join(clean_pitch_tiers_col)
     segments_df.to_csv(df_fn, index=False)
 
 
