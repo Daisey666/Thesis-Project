@@ -14,13 +14,13 @@ def extract_all_audio_segments_from_single_file(audio_fn, df_fn, dest_path):
     # TODO check if order is preserved
     sample_rate, signal = wavfile.read(audio_fn)
     segments_df = pd.read_csv(df_fn, dtype={"start_time": int, "end_time": int, "class": str})
-    file_names = []
+    segments = []
     counter = 0
     for start, end, c in segments_df.values:
         fn = dest_path + os.path.basename.split(audio_fn)[:-EXT_SIZE] + str(counter).zfill(Z_FILL_PARAM) + EXT
-        file_names += fn
+        segments.append((start, fn))
         wavfile.write(fn, sample_rate, signal[start, end])
-    seg_path_col = pd.DataFrame(data=file_names, columns=["audio_segment_file"])
+    seg_path_col = pd.DataFrame(data=segments, columns=["start_time", "audio_segment_file"])
     segments_df = segments_df.join(seg_path_col)
     segments_df.to_csv(df_fn, index=False)
 

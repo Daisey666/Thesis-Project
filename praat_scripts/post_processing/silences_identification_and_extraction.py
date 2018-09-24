@@ -24,15 +24,15 @@ def delete_pitch_ouliers_from_complete_event(df_fn, dest_path, n_sigma):
         tmp_df.to_csv(intensity_tier, index=False)
     mean = np.mean(intensity_values, axis=0)
     sd = np.std(intensity_values, axis=0)
-    clean_intensity_tiers_list = []
+    clean_intensity_tiers = []
     for intensity_tier in intensity_tier_list:
         tmp_df = pd.read_csv(intensity_tier, dtype={"Time": float, "Intensity": float})
         clean_intensity_tier_df_fn = dest_path + os.path.basename.split(intensity_tier)[:-TAB_EXT_SIZE] + CLEAN_INTENSITY_TIER
-        clean_intensity_tiers_list.append(clean_intensity_tier_df_fn)
+        clean_intensity_tiers.append((intensity_tier, clean_intensity_tier_df_fn))
         query = "Intensity >= " + str(mean) + " - " + str(n_sigma * sd) + " and Intensity <= " + str(mean) + " + " + str(n_sigma * sd)
         clean_pitch_tier_df = tmp_df.query(query)
         clean_pitch_tier_df.to_csv(clean_intensity_tier_df_fn, index=False)
-    clean_intensity_tiers_col = pd.DataFrame(data=clean_intensity_tiers_list, columns=["clean_intensity_tier"])
+    clean_intensity_tiers_col = pd.DataFrame(data=clean_intensity_tiers, columns=["intensity_tier_file", "clean_intensity_tier"])
     segments_df = segments_df.join(clean_intensity_tiers_col)
     segments_df.to_csv(df_fn, index=False)
 

@@ -27,7 +27,7 @@ def extract_info_from_complete_event_segments(df_fn, praat_parameters, dest_path
     # TODO controllare che i nomi dei nuovi file vengano inseriti correttamente
     segments_df = pd.read_csv(df_fn, dtype={"start_time": int, "end_time": int, "class": str, "audio_segment_file":str})
     info_file_names = []
-    new_columns = ["pitch_file", "pitch_tier_file", "point_process_file", "intensity_file", "intensity_tier_file", "voice_report_file"]
+    new_columns = ["audio_segment_file", "pitch_file", "pitch_tier_file", "point_process_file", "intensity_file", "intensity_tier_file", "voice_report_file"]
     for wav_file in segments_df["audio_segment_file"].values:
         pitch_file = dest_paths.pitch_path + os.path.basename.split(wav_file)[:-EXT_SIZE] + PITCH
         pitch_tier_file = dest_paths.pitch_tier_path + os.path.basename.split(wav_file)[:-EXT_SIZE] + PITCH_TIER
@@ -35,7 +35,7 @@ def extract_info_from_complete_event_segments(df_fn, praat_parameters, dest_path
         intensity_file = dest_paths.intensity_path + os.path.basename.split(wav_file)[:-EXT_SIZE] + INTENSITY
         intensity_tier_file = dest_paths.intensity_tier_path + os.path.basename.split(wav_file)[:-EXT_SIZE] + INTENSITY_TIER
         voice_report_file = dest_paths.voice_report_path + os.path.basename.split(wav_file)[:-EXT_SIZE] + VOICE_REPORT
-        info_file_names.append((pitch_file, pitch_tier_file, point_process_file, intensity_file, intensity_tier_file, voice_report_file))
+        info_file_names.append((wav_file, pitch_file, pitch_tier_file, point_process_file, intensity_file, intensity_tier_file, voice_report_file))
         subprocess.call([PRAAT, RUN_OPTIONS, PRAAT_SCRIPT, wav_file, pitch_file, pitch_tier_file, point_process_file, intensity_file, intensity_tier_file, voice_report_file, str(praat_parameters.pitch_min), str(praat_parameters.pitch_max), str(praat_parameters.max_period_factor), str(praat_parameters.max_amplitude_factor), str(praat_parameters.silence_threshold), str(praat_parameters.voicing_thresholding), praat_parameters.subtract_mean])
     ext_info_cols = pd.DataFrame(data=info_file_names, columns=new_columns)
     segments_df = segments_df.join(ext_info_cols)
