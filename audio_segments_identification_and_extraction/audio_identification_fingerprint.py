@@ -174,7 +174,7 @@ def get_segments_location(full_audio_fn, audio_segments_fn):
 
 def generate_time_boundaries_df(full_audio_fn, audio_segments_fn, df_fn):
     tmp_data = get_segments_location(full_audio_fn, audio_segments_fn)
-    sorted(tmp_data, key=itemgetter(0))
+    tmp_data = sorted(tmp_data, key=itemgetter(0))
     df = pd.DataFrame(data=tmp_data, columns=["start_time", "end_time", "class"])
     df.to_csv(df_fn, index=False)
 

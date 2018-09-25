@@ -52,6 +52,6 @@ def extract_speech_informations(audio_info_df_fn, dest_path, parallel=False, n_j
     df = pd.read_csv(audio_info_df_fn, dtype={"complete_event_file": str, "segmented_event_file": str, "segment_boundaries_df": str})
     audio_list = df["complete_event_file"].values
     if parallel:
-        extract_speech_info_parallel(audio_list, df, dest_path, audio_info_df_fn, n_jobs)
+        extract_speech_info_parallel(audio_list, df, audio_info_df_fn, dest_path, n_jobs)
     else:
-        extract_speech_info_serial(audio_list, df, dest_path, audio_info_df_fn)
+        extract_speech_info_serial(audio_list, df, audio_info_df_fn, dest_path)
