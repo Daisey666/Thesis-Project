@@ -14,7 +14,7 @@ PRAAT = "/Applications/Praat.app/Contents/MacOS/Praat"
 RUN_OPTIONS = "--run"
 # Add full path to praat script
 PRAAT_SCRIPT = "audio_info_extraction.praat"
-GLOBAL_REPORT = "_global_report"
+PARAM_FILE = "_param_file.csv"
 PITCH = "_pitch.Pitch"
 PITCH_TIER = "_pitch_tier.csv"
 POINT_PROCESS = "_point_process.PointProcess"
@@ -27,8 +27,9 @@ def extract_info_from_complete_event_segments(df_fn, praat_parameters, dest_path
     # TODO controllare che i nomi dei nuovi file vengano inseriti correttamente
     segments_df = pd.read_csv(df_fn, dtype={"start_time": int, "end_time": int, "class": str, "audio_segment_file":str})
     info_file_names = []
-    new_columns = ["audio_segment_file", "pitch_file", "pitch_tier_file", "point_process_file", "intensity_file", "intensity_tier_file", "voice_report_file"]
+    new_columns = ["audio_segment_file", "parameters_file", "pitch_file", "pitch_tier_file", "point_process_file", "intensity_file", "intensity_tier_file", "voice_report_file"]
     for wav_file in segments_df["audio_segment_file"].values:
+        parameters_file = dest_paths.parameters_PATH + os.path.basename.split(wav_file)[:-EXT_SIZE] + PARAM_FILE
         pitch_file = dest_paths.pitch_path + os.path.basename.split(wav_file)[:-EXT_SIZE] + PITCH
         pitch_tier_file = dest_paths.pitch_tier_path + os.path.basename.split(wav_file)[:-EXT_SIZE] + PITCH_TIER
         point_process_file = dest_paths.point_process_path + os.path.basename.split(wav_file)[:-EXT_SIZE] + POINT_PROCESS
@@ -36,7 +37,19 @@ def extract_info_from_complete_event_segments(df_fn, praat_parameters, dest_path
         intensity_tier_file = dest_paths.intensity_tier_path + os.path.basename.split(wav_file)[:-EXT_SIZE] + INTENSITY_TIER
         voice_report_file = dest_paths.voice_report_path + os.path.basename.split(wav_file)[:-EXT_SIZE] + VOICE_REPORT
         info_file_names.append((wav_file, pitch_file, pitch_tier_file, point_process_file, intensity_file, intensity_tier_file, voice_report_file))
-        subprocess.call([PRAAT, RUN_OPTIONS, PRAAT_SCRIPT, wav_file, pitch_file, pitch_tier_file, point_process_file, intensity_file, intensity_tier_file, voice_report_file, str(praat_parameters.pitch_min), str(praat_parameters.pitch_max), str(praat_parameters.max_period_factor), str(praat_parameters.max_amplitude_factor), str(praat_parameters.silence_threshold), str(praat_parameters.voicing_thresholding), praat_parameters.subtract_mean])
+        subprocess.call([PRAAT, RUN_OPTIONS, PRAAT_SCRIPT, wav_file,
+                         parameters_file, pitch_file, pitch_tier_file,
+                         point_process_file, intensity_file,
+                         intensity_tier_file, voice_report_file,
+                         str(praat_parameters.window_size),
+                         str(praat_parameters.window_shift),
+                         str(praat_parameters.pitch_min),
+                         str(praat_parameters.pitch_max),
+                         str(praat_parameters.max_period_factor),
+                         str(praat_parameters.max_amplitude_factor),
+                         str(praat_parameters.silence_threshold),
+                         str(praat_parameters.voicing_thresholding),
+                         str(praat_parameters.minimum_pitch))
     ext_info_cols = pd.DataFrame(data=info_file_names, columns=new_columns)
     segments_df = segments_df.join(ext_info_cols)
     segments_df.to_csv(df_fn, index=False)

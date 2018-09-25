@@ -17,6 +17,7 @@ def delete_pitch_ouliers_from_complete_event(df_fn, dest_path, n_sigma):
     segments_df = pd.read_csv(df_fn, dtype={"start_time": int, "end_time": int,
                                             "class": str,
                                             "audio_segment_file": str,
+                                            "parameters_file": str,
                                             "pitch_file": str,
                                             "pitch_tier_file": str,
                                             "point_process_file": str,
