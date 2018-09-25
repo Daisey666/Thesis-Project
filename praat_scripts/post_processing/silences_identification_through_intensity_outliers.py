@@ -41,7 +41,7 @@ def extract_silences_as_intensity_outliers(df_fn, dest_path, win_size,
         silences_from_intensity_df_fn = dest_path + os.path.basename.split(audio_fn)[:-EXT_SIZE] + SILENCES_FROM_INTENSITY
         silences.append((audio_fn, silences_from_intensity_df_fn))
         tmp_intervals = list(map(lambda x: list((x[0] - (win_size / 2), x[0] + (win_size / 2), x[1])), tmp_df[["Time", "Intensity"]].values)
-        intervals = list(filter(lambda x: x < mean - (n_sigma * sd) or x > mean + (n_sigma * sd), tmp_intervals))
+        intervals = list(filter(lambda x: (x < mean - (n_sigma * sd)) or (x > mean + (n_sigma * sd)), tmp_intervals))
         intervals = sorted(tmp_data, key=itemgetter(0))
         consecutives = []
         st = intervals[0][0]
