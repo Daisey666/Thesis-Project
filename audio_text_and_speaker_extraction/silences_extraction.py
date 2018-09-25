@@ -29,7 +29,7 @@ def extract_silences_from_speech_infos(audio_fn, silence_info_df_fn, speech_info
     segments += [(x, y, "silence") for x, y in list(zip(start, end))]
     segments = sorted(segments, key=itemgetter(0))
     df = pd.DataFrame(data=segments, columns=["start_time", "end_time", "silence"])
-    return 1
+    df.to_csv(silence_info_df_fn, index=False)
 
 
 def silences_extraction_serial(audio_df_list, audio_info_df, ai_df_fn, praat_parameters, dest_path):
