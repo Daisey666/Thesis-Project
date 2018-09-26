@@ -33,8 +33,8 @@ def extract_silences_as_intensity_outliers(df_fn, dest_path, win_size,
                                                     "Intensity": float})
         intensity_values = np.concatenate((intensity_values,
                                            tmp_df["Intensity"].values))
-    mean = np.mean(intensity_values, axis=0)
-    sd = np.std(intensity_values, axis=0)
+    mean_i = np.mean(intensity_values, axis=0)
+    sd_i = np.std(intensity_values, axis=0)
     silences = []
     for audio_fn, intensity_tier in audio_intensity_fn_list:
         tmp_df = pd.read_csv(intensity_tier, dtype={"Time": float,
@@ -42,7 +42,7 @@ def extract_silences_as_intensity_outliers(df_fn, dest_path, win_size,
         silences_from_intensity_df_fn = dest_path + os.path.basename.split(audio_fn)[:-EXT_SIZE] + SILENCES_FROM_INTENSITY
         silences.append((audio_fn, silences_from_intensity_df_fn))
         tmp_intervals = list(map(lambda x: list((x[0] - (win_size / 2), x[0] + (win_size / 2), x[1])), tmp_df[["Time", "Intensity"]].values)
-        intervals = list(filter(lambda x: (x < mean - (n_sigma * sd)) or (x > mean + (n_sigma * sd)), tmp_intervals))
+        intervals = list(filter(lambda x: (x[2] < mean_i - (n_sigma * sd_i)) or (x[2] > mean_i + (n_sigma * sd_i)), tmp_intervals))
         intervals = sorted(tmp_data, key=itemgetter(0))
         consecutives = []
         st = intervals[0][0]
