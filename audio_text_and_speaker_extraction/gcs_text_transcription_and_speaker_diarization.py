@@ -10,6 +10,20 @@ EXT_SIZE = len(EXT)
 SPEECH_INFO = "_speech_info.csv"
 SAMPLE_RATE = 44100
 
+DTYPE = {"complete_event_file": str,
+         "segmented_event_file": str,
+         "segment_boundaries_df": str,
+         "parameters_file": str,
+         "pitch_file": str,
+         "pitch_tier_file": str,
+         "point_process_file": str,
+         "intensity_file": str,
+         "intensity_tier_file": str,
+         "voice_report_file": str,
+         "clean_intensity_tier": str,
+         "clean_pitch_tier_file": str,
+         "silences_from_intensity_file": str}
+
 
 def extract_text_trascription_and_speaker_diarization(audio_fn, speech_info_df_fn):
     client = speech.SpeechClient()
@@ -49,7 +63,7 @@ def extract_speech_info_parallel(audio_list, audio_info_df, ai_df_fn, dest_path,
 
 
 def extract_speech_informations(audio_info_df_fn, dest_path, parallel=False, n_jobs=-1):
-    df = pd.read_csv(audio_info_df_fn, dtype={"complete_event_file": str, "segmented_event_file": str, "segment_boundaries_df": str})
+    df = pd.read_csv(audio_info_df_fn, dtype=DTYPE)
     audio_list = df["complete_event_file"].values
     if parallel:
         extract_speech_info_parallel(audio_list, df, audio_info_df_fn, dest_path, n_jobs)
