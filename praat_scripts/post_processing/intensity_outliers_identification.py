@@ -19,6 +19,7 @@ DTYPE = {"complete_event_file": str,
          "intensity_file": str,
          "intensity_tier_file": str,
          "voice_report_file": str}
+DTYPE_INTENSITY_TIER_OLD = {"Time (s)": float, "Intensity (dB)": float}
 
 # TODO check what has to be done with intensity outliers
 # TODO add silences intervals identification
@@ -29,7 +30,7 @@ def gen_file_name(intensity_tier_fn, dest_path):
 
 
 def delete_intensity_ouliers_from_complete_event(intensity_tier_fn, clean_intensity_tier_fn, n_sigma):
-    it_tmp_df = pd.read_csv(intensity_tier_fn, dtype={"Time (s)": float, "Intensity (dB)": float})
+    it_tmp_df = pd.read_csv(intensity_tier_fn, dtype=DTYPE_INTENSITY_TIER_OLD)
     it_tmp_df = it_tmp_df.rename(columns={"Time (s)": "Time", "Intensity (dB)": "Intensity"})
     it_tmp_df.to_csv(intensity_tier_fn, index=False)
     intensity_values = it_tmp_df["Intensity"].values
@@ -60,7 +61,7 @@ def intensity_outliers_identification_parallel(audio_info_df, audio_info_df_fn, 
 def identify_intensity_outliers(audio_info_df_fn, dest_path, n_sigma=2, parallel=False, n_jobs=-1):
     df = pd.read_csv(audio_info_df_fn, dtype=DTYPE)
     it_list = df["intensity_tier_file"].values
-    new_column = ["intensity_tier", "clean_intensity_tier"]
+    new_column = ["intensity_tier_file", "clean_intensity_tier_file"]
     if parallel:
         intensity_outliers_identification_parallel(df, audio_info_df_fn, it_list, dest_path, new_column, n_sigma, n_jobs)
     else:

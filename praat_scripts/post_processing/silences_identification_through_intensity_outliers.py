@@ -10,74 +10,88 @@ EXT = ".wav"
 EXT_SIZE = len(EXT)
 SILENCES_FROM_INTENSITY = "_silences_from_intensity.csv"
 
-
-def extract_silences_as_intensity_outliers(df_fn, dest_path, win_size,
-                                           n_sigma):
-    segments_df = pd.read_csv(df_fn, dtype={"start_time": int, "end_time": int,
-                                            "class": str,
-                                            "audio_segment_file": str,
-                                            "parameters_file": str,
-                                            "pitch_file": str,
-                                            "pitch_tier_file": str,
-                                            "point_process_file": str,
-                                            "intensity_file": str,
-                                            "intensity_tier_file": str,
-                                            "voice_report_file": str,
-                                            "clean_pitch_tier_file": str,
-                                            "clean_intensity_tier": str})
-    audio_intensity_fn_list = segments_df[["audio_segment_file",
-                                           "intensity_tier_file"]].values
-    intensity_values = np.array([])
-    for tmp, intensity_tier in audio_intensity_fn_list:
-        tmp_df = pd.read_csv(intensity_tier, dtype={"Time": float,
-                                                    "Intensity": float})
-        intensity_values = np.concatenate((intensity_values,
-                                           tmp_df["Intensity"].values))
-    mean_i = np.mean(intensity_values, axis=0)
-    sd_i = np.std(intensity_values, axis=0)
-    silences = []
-    for audio_fn, intensity_tier in audio_intensity_fn_list:
-        tmp_df = pd.read_csv(intensity_tier, dtype={"Time": float,
-                                                    "Intensity": float})
-        silences_from_intensity_df_fn = dest_path + os.path.basename.split(audio_fn)[:-EXT_SIZE] + SILENCES_FROM_INTENSITY
-        silences.append((audio_fn, silences_from_intensity_df_fn))
-        tmp_intervals = list(map(lambda x: list((x[0] - (win_size / 2), x[0] + (win_size / 2), x[1])), tmp_df[["Time", "Intensity"]].values)
-        intervals = list(filter(lambda x: (x[2] < mean_i - (n_sigma * sd_i)) or (x[2] > mean_i + (n_sigma * sd_i)), tmp_intervals))
-        intervals = sorted(tmp_data, key=itemgetter(0))
-        consecutives = []
-        st = intervals[0][0]
-        for i in range(len(intervals)-1):
-            if intervals[i][1] != intervals[i+1][0]:
-                consecutives.append((st, intervals[i][1]))
-                st = intervals[i+1][0]
-        consecutives.append((st, intervals[-1][1]))
-        segments = [(x, y, "silence") for x, y, z in consecutives]
-        sample_rate, signal = wavfile.read(audio_fn)
-        len = float(len(signal) / sample_rate)
-        start = [x[1] for x in intervals[:-1]]
-        end = [x[0] for x in intervals[1:]]
-        segments += [(x, y, "speech") for x, y in list(zip(start, end))]
-        segments = sorted(segments, key=itemgetter(0))
-        df = pd.DataFrame(data=segments, columns=["start_time", "end_time", "silence"])
-        df.to_csv(silences_from_intensity_df_fn, index=False)
-    silences_from_intensity_col = pd.DataFrame(data=clean_intensity_tiers, columns=["audio_segment_file", "silences_from_intensity"])
-    segments_df = segments_df.join(silences_from_intensity_col)
-    segments_df.to_csv(df_fn, index=False)
+DTYPE = {"complete_event_file": str,
+         "segmented_event_file": str,
+         "segment_boundaries_df": str,
+         "parameters_file": str,
+         "pitch_file": str,
+         "pitch_tier_file": str,
+         "point_process_file": str,
+         "intensity_file": str,
+         "intensity_tier_file": str,
+         "voice_report_file": str,
+         "clean_intensity_tier": str,
+         "clean_pitch_tier_file": str}
+DTYPE_PARAM = {"dx_pitch": float,
+               "dx_intensity": float,
+               "window_size_vr": float,
+               "window_shift_vr": float}
+DTYPE_INTENSITY_TIER = {"Time": float, "Intensity": float}
 
 
-def silences_identification_through_intensity_serial(audio_df_list, dest_path, win_size, n_sigma):
-    for df_fn in audio_df_list:
-        extract_silences_as_intensity_outliers(df_fn, dest_path, win_size, n_sigma)
+def gen_file_name(audio_fn, dest_path):
+    csil = dest_path + os.path.basename.split(audio_fn)[:-EXT_SIZE] + SILENCES_FROM_INTENSITY
+    return csil
 
 
-def silences_identification_through_intensity_parallel(audio_df_list, dest_path, win_size, n_sigma, n):
-    Parallel(n_jobs=n, backend="threading")(delayed(extract_silences_as_intensity_outliers)(x, dest_path, win_size, n_sigma) for x in audio_df_list)
+def get_win_size(param_df_fn):
+    param_df = pd.read_csv(param_df_fn, dtype=DTYPE_PARAM)
+    ws = param_df["dx_intensity"].values[0]
+    return ws
 
 
-def identify_silences(audio_info_df_fn, dest_path, win_size, n_sigma=2, parallel=False, n_jobs=-1):
-    df = pd.read_csv(audio_info_df_fn, dtype={"complete_event_file": str, "segmented_event_file": str, "segment_boundaries_df": str})
-    audio_df_list = df["segment_boundaries_df"].values
+def extract_silences_as_intensity_outliers(silences_df_fn, window_size, intensity_tier_df_fn, n_sigma):
+    intensity_tier_df = pd.read_csv(intensity_tier_df_fn, dtype=DTYPE_INTENSITY_TIER)
+    intensity_values = intensity_tier_df["Intensity"]
+    mean = np.mean(intensity_values, axis=0)
+    sd = np.std(intensity_values, axis=0)
+    query = "Intensity < " + str(mean) + " - " + str(n_sigma * sd) + " or Intensity > " + str(mean) + " + " + str(n_sigma * sd)
+    intensity_tier_df = intensity_tier_df.query(query)
+    ts = intensity_tier_df["Time"].values
+    tmp_intervals = list(map(lambda x: list((x - (window_size / 2), x + (window_size + 2))), ts))
+    intervals = sorted(tmp_intervals, key=itemgetter(0))
+    consecutives = []
+    st = intervals[0][0]
+    for i in range(len(intervals)-1):
+        if intervals[i][1] != intervals[i+1][0]:
+            consecutives.append((st, intervals[i][1]))
+            st = intervals[i+1][0]
+    consecutives.append((st, intervals[-1][1]))
+    consecutives[0][0] = 0
+    #TODO check how to set end time efficiently
+    segments = [(x, y, "silence") for x, y in consecutives]
+    start = [x[1] for x in consecutives[:-1]]
+    end = [x[0] for x in consecutives[1:]]
+    segments += [(x, y, "speech") for x, y in list(zip(start, end))]
+    segments = sorted(segments, key=itemgetter(0))
+    silences_df = pd.DataFrame(data=segments, columns=["start_time", "end_time", "silence"])
+    silences_df.to_csv(silences_df_fn, index=False)
+
+
+def silences_identification_through_intensity_serial(audio_info_df, audio_info_df_fn, audio_param_it_list, dest_path, new_column, n_sigma):
+    audio_sil_ws_it_list = list(map(lambda x: list(x[0], gen_file_name(x[0], dest_path), get_win_size(x[1]), x[2]), audio_param_it_list))
+    for tmp, sil_df_fn, win_size, it_df_fn in audio_sil_ws_it_list:
+        extract_silences_as_intensity_outliers(sil_df_fn, win_size, it_df_fn, n_sigma)
+    sil_df_fn_list = [(x, y) for x, y, z, t in audio_sil_ws_it_list]
+    sil_df = pd.DataFrame(data=sil_df_fn_list, columns=new_column)
+    audio_info_df = audio_info_df.join(sil_df)
+    audio_info_df.to_csv(audio_info_df_fn, index=False)
+
+
+def silences_identification_through_intensity_parallel(audio_info_df, audio_info_df_fn, audio_param_it_list, dest_path, new_column, n_sigma, n):
+    audio_sil_ws_it_list = list(map(lambda x: list(x[0], gen_file_name(x[0], dest_path), get_win_size(x[1]), x[2]), audio_param_it_list))
+    Parallel(n_jobs=n, backend="threading")(delayed(extract_silences_as_intensity_outliers)(y, z, t, n_sigma) for x, y, z, t in audio_sil_ws_it_list)
+    sil_df_fn_list = [(x, y) for x, y, z, t in audio_sil_ws_it_list]
+    sil_df = pd.DataFrame(data=sil_df_fn_list, columns=new_column)
+    audio_info_df = audio_info_df.join(sil_df)
+    audio_info_df.to_csv(audio_info_df_fn, index=False)
+
+
+def identify_silences(audio_info_df_fn, dest_path, n_sigma=2, parallel=False, n_jobs=-1):
+    df = pd.read_csv(audio_info_df_fn, dtype=DTYPE)
+    audio_param_it_list = df[["complete_event_file", "parameters_file", "intensity_tier_file"]].values
+    new_column = ["complete_event_file", "silences_from_intensity_file"]
     if parallel:
-        silences_identification_through_intensity_parallel(audio_df_list, dest_path, win_size, n_sigma, n_jobs)
+        silences_identification_through_intensity_parallel(df, audio_info_df_fn, audio_param_it_list, dest_path, new_column, n_sigma, n_jobs)
     else:
-        silences_identification_through_intensity_serial(audio_df_list, dest_path, win_size, n_sigma)
+        silences_identification_through_intensity_serial(df, audio_info_df_fn, audio_param_it_list, dest_path, new_column, n_sigma)

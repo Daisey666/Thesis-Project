@@ -29,8 +29,8 @@ DTYPE = {"complete_event_file": str,
 Praat_File_Paths = collections.namedtuple("PraatFilePaths", "params pitch pitch_tier point_process intensity intensity_tier voice_report")
 
 
-def gen_file_names(audio_file_name, dest_paths):
-    base_fn = os.path.basename.split(audio_file_name)[:-EXT_SIZE]
+def gen_file_names(audio_fn, dest_paths):
+    base_fn = os.path.basename.split(audio_fn)[:-EXT_SIZE]
     pfp = Praat_File_Paths(params=dest_paths.parameters_path + base_fn + PARAM,
                            pitch=dest_paths.pitch_path + base_fn + PITCH,
                            pitch_tier=dest_paths.pitch_tier_path + base_fn + PITCH_TIER,
