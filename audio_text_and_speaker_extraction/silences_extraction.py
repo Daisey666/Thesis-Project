@@ -76,7 +76,7 @@ def silences_extraction_parallel(audio_df_list, audio_info_df, ai_df_fn, praat_p
 def extract_silence_informations(audio_info_df_fn, audio_info_df, ai_df_fn, dest_path, parallel=False, n_jobs=-1):
     # Note that praat_parameters and dest_paths must be passed as named tuples
     df = pd.read_csv(audio_info_df_fn, dtype=DTYPE)
-    audio_df_list = df[["complete_event_file", "speech_info_df"]].values
+    audio_df_list = df[["complete_event_file", "speech_info_file"]].values
     if parallel:
         silences_extraction_parallel(audio_df_list, df, audio_info_df_fn, dest_path, n_jobs)
     else:

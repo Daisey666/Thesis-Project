@@ -49,7 +49,7 @@ def extract_speech_info_serial(audio_list, audio_info_df, ai_df_fn, dest_path):
     word_infos = [(x, dest_path + os.path.basename.split(x)[:-EXT_SIZE] + SPEECH_INFO) for x in audio_list]
     for audio_fn, speech_info_df_fn in word_infos:
         extract_text_trascription_and_speaker_diarization(audio_fn, speech_info_df_fn)
-    speech_info_col = pd.DataFrame(data=word_infos, columns=["complete_event_file", "speech_info_df"])
+    speech_info_col = pd.DataFrame(data=word_infos, columns=["complete_event_file", "speech_info_file"])
     audio_info_df = audio_info_df.join(speech_info_col)
     audio_info_df.to_csv(ai_df_fn, index=False)
 
@@ -57,7 +57,7 @@ def extract_speech_info_serial(audio_list, audio_info_df, ai_df_fn, dest_path):
 def extract_speech_info_parallel(audio_list, audio_info_df, ai_df_fn, dest_path, n):
     word_infos = [(x, dest_path + os.path.basename.split(x)[:-EXT_SIZE] + SPEECH_INFO) for x in audio_list]
     Parallel(n_jobs=n, backend="threading")(delayed(extract_text_trascription_and_speaker_diarization)(x, y) for x, y in word_infos)
-    speech_info_col = pd.DataFrame(data=word_infos, columns=["complete_event_file", "speech_info_df"])
+    speech_info_col = pd.DataFrame(data=word_infos, columns=["complete_event_file", "speech_info_file"])
     audio_info_df = audio_info_df.join(speech_info_col)
     audio_info_df.to_csv(ai_df_fn, index=False)
 
