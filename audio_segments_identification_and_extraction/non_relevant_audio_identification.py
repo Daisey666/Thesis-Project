@@ -5,6 +5,14 @@ from scipy.io import wavfile
 from joblib import Parallel, delayed
 
 
+DTYPE = {"complete_event_file": str,
+         "segmented_event_file": str,
+         "segment_boundaries_df": str}
+DTYPE_SEGMENT_BOUNDARIES = {"start_time": int,
+                            "end_time": int,
+                            "class": str}
+
+
 def split_segment(start, end, n_split):
     splits = []
     len = (end - start) // n_split
@@ -34,7 +42,7 @@ def complete_time_boundaries_df(audio_fn, df_fn):
     sample_rate, signal = wavfile.read(audio_fn)
     start = 0
     end = len(signal)
-    segments_df = pd.read_csv(df_fn, dtype={"start_time": int, "end_time": int, "class": str})
+    segments_df = pd.read_csv(df_fn, dtype=DTYPE_SEGMENT_BOUNDARIES)
     seg_s_e_list = segments_df[["start_time", "end_time"]].values
     non_relevant_segments = get_segments(start, end, seg_s_e_list)
     new_df = pd.DataFrame(data=non_relevant_segments, columns=["start_time", "end_time", "class"])
@@ -53,7 +61,7 @@ def extract_time_boundaries_parallel(audio_df_list, n):
 
 
 def extract_non_relevant_segments_positions(audio_info_df_fn, parallel=False, n_jobs=-1):
-    df = pd.read_csv(audio_info_df_fn, dtype={"complete_event_file": str, "segmented_event_file": str, "segment_boundaries_df": str})
+    df = pd.read_csv(audio_info_df_fn, dtype=DTYPE)
     audio_df_list = df[["complete_event_file", "segment_boundaries_df"]].values
     if parallel:
         extract_time_boundaries_parallel(audio_df_list, n_jobs)
