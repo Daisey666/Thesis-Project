@@ -20,7 +20,7 @@ DTYPE = {"complete_event_file": str,
          "intensity_tier_file": str,
          "voice_report_file": str,
          "silences_from_intensity_file": str,
-         "clean_intensity_tier": str}
+         "clean_intensity_tier_file": str}
 DTYPE_PITCH_TIER = {"Time": float, "F0": float}
 
 # TODO check if outliers must be put to zero or deleted

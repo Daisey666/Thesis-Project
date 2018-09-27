@@ -1,5 +1,7 @@
 # Imports
 import os
+import subprocess
+import collections
 import pandas as pd
 import numpy as np
 from joblib import Parallel, delayed
@@ -9,6 +11,9 @@ from operator import itemgetter
 EXT = ".wav"
 EXT_SIZE = len(EXT)
 SILENCES_FROM_INTENSITY = "_silences_from_intensity.csv"
+# Change in case OS is not MacOS
+PRAAT = "/Applications/Praat.app/Contents/MacOS/Praat"
+RUN_OPTIONS = "--run"
 
 DTYPE = {"complete_event_file": str,
          "segmented_event_file": str,
@@ -34,10 +39,10 @@ def gen_file_name(audio_fn, dest_path):
     return csil
 
 
-def get_win_size(param_df_fn):
+def get_time_step(param_df_fn):
     param_df = pd.read_csv(param_df_fn, dtype=DTYPE_PARAM)
-    ws = param_df["dx_intensity"].values[0]
-    return ws
+    ts = param_df["dx_intensity"].values[0]
+    return ts
 
 
 def extract_silences_as_intensity_outliers(silences_df_fn, window_size, intensity_tier_df_fn, n_sigma):
@@ -89,7 +94,7 @@ def silences_identification_through_intensity_parallel(audio_info_df, audio_info
 
 def identify_silences(audio_info_df_fn, dest_path, n_sigma=2, parallel=False, n_jobs=-1):
     df = pd.read_csv(audio_info_df_fn, dtype=DTYPE)
-    audio_param_it_list = df[["complete_event_file", "parameters_file", "intensity_tier_file"]].values
+    audio_param_it_list = df[["complete_event_file", "parameters_file", "clean_intensity_tier_file"]].values
     new_column = ["complete_event_file", "silences_from_intensity_file"]
     if parallel:
         silences_identification_through_intensity_parallel(df, audio_info_df_fn, audio_param_it_list, dest_path, new_column, n_sigma, n_jobs)

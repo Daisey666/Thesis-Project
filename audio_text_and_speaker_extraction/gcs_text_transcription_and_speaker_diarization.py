@@ -20,7 +20,7 @@ DTYPE = {"complete_event_file": str,
          "intensity_file": str,
          "intensity_tier_file": str,
          "voice_report_file": str,
-         "clean_intensity_tier": str,
+         "clean_intensity_tier_file": str,
          "clean_pitch_tier_file": str,
          "silences_from_intensity_file": str}
 
