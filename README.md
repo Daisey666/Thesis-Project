@@ -15,3 +15,8 @@ Thesis-Project
 4 - audio_text_and_speaker_extraction
   4.1 - gcs_text_transcription_and_speaker_diarization
   4.2 - silences_extraction
+    4.2.1 - remove_names_from_transcripts
+5 - speaker_statistics_extraction
+  5.1 - extract_pitch_statistics
+  5.2 - extract_intensity_statistics
+  5.3 - extract_voice_report_statistics
