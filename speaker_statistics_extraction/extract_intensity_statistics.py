@@ -34,8 +34,8 @@ DTYPE_SPEECH_INFO = {"word": str,
 
 
 def gen_file_name(audio_fn, dest_path):
-    pstatfn = dest_path + os.path.basename.split(audio_fn)[:-EXT_SIZE] + INTENSITY_SPEAKER_STATS
-    return pstatfn
+    istatfn = dest_path + os.path.basename.split(audio_fn)[:-EXT_SIZE] + INTENSITY_SPEAKER_STATS
+    return istatfn
 
 
 def extract_speaker_intensity_stats(intensity_tier_df_fn, speech_info_df_fn, intensity_stats_df_fn):
