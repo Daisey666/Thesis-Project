@@ -60,7 +60,7 @@ def silences_extraction_serial(audio_df_list, audio_info_df, ai_df_fn, praat_par
     silence_infos = [(x, gen_file_name(x, dest_path), y) for x, y in audio_df_list]
     for audio_fn, silence_info_df_fn, speech_info_df_fn in silence_infos:
         extract_silences_from_speech_infos(audio_fn, silence_info_df_fn, speech_info_df_fn)
-    silences_info_col = pd.DataFrame(data=silence_infos, columns=["complete_event_file", "silences_info_file", "speech_info_df"])
+    silences_info_col = pd.DataFrame(data=silence_infos, columns=["complete_event_file", "silences_info_file", "speech_info_file"])
     audio_info_df = audio_info_df.join(silences_info_col)
     audio_info_df.to_csv(ai_df_fn, index=False)
 
@@ -68,12 +68,12 @@ def silences_extraction_serial(audio_df_list, audio_info_df, ai_df_fn, praat_par
 def silences_extraction_parallel(audio_df_list, audio_info_df, ai_df_fn, praat_parameters, dest_path, n):
     silence_infos = [(x, gen_file_name(x, dest_path), y) for x, y in audio_df_list]
     Parallel(n_jobs=n, backend="threading")(delayed(extract_silences_from_speech_infos)(x, y, z) for x, y, z in silence_infos)
-    silences_info_col = pd.DataFrame(data=silence_infos, columns=["complete_event_file", "silences_info_file", "speech_info_df"])
+    silences_info_col = pd.DataFrame(data=silence_infos, columns=["complete_event_file", "silences_info_file", "speech_info_file"])
     audio_info_df = audio_info_df.join(silences_info_col)
     audio_info_df.to_csv(ai_df_fn, index=False)
 
 
-def extract_silence_informations(audio_info_df_fn, audio_info_df, ai_df_fn, dest_path, parallel=False, n_jobs=-1):
+def extract_silence_informations(audio_info_df_fn, dest_path, parallel=False, n_jobs=-1):
     # Note that praat_parameters and dest_paths must be passed as named tuples
     df = pd.read_csv(audio_info_df_fn, dtype=DTYPE)
     audio_df_list = df[["complete_event_file", "speech_info_file"]].values
