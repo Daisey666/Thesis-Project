@@ -13,8 +13,8 @@ SAMPLE_RATE = 44100
 DTYPE = {"complete_event_file": str,
          "segmented_event_file": str,
          "segment_boundaries_df": str}
-DTYPE_SEGMENT_BOUNDARIES = {"start_time": int,
-                            "end_time": int,
+DTYPE_SEGMENT_BOUNDARIES = {"start_time": float,
+                            "end_time": float,
                             "class": str}
 
 
@@ -27,7 +27,7 @@ def extract_all_audio_segments_from_single_file(audio_fn, df_fn, dest_path):
     for start, end, c in segments_df.values:
         fn = dest_path + os.path.basename.split(audio_fn)[:-EXT_SIZE] + str(counter).zfill(Z_FILL_PARAM) + EXT
         segments.append((start, fn))
-        wavfile.write(fn, sample_rate, signal[(start * SAMPLE_RATE), (end * SAMPLE_RATE)])
+        wavfile.write(fn, sample_rate, signal[int(start * SAMPLE_RATE), int(end * SAMPLE_RATE)])
     seg_path_col = pd.DataFrame(data=segments, columns=["start_time", "audio_segment_file"])
     segments_df = segments_df.join(seg_path_col)
     segments_df.to_csv(df_fn, index=False)

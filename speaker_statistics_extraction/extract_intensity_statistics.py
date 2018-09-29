@@ -47,6 +47,7 @@ def extract_speaker_intensity_stats(intensity_tier_df_fn, speech_info_df_fn, int
     for speaker in speech_info_df.speaker_tag.unique():
         spk_df = speech_info_df[speech_info_df["speaker_tag"] == speaker]
         speech_intervals = spk_df[["start_time", "end_time"]].values
+        # TODO check usage of none on second array
         time_stamps, tmp = np.where((time_intensity_values[:, 0, None] >= speech_intervals[:, 0, None]) & (time_intensity_values[:, 0, None] < speech_intervals[:, 1, None]))
         speaker_intensities = time_intensity_values[time_stamps, 1]
         intensity_stats.append((speaker,
