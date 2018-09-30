@@ -8,8 +8,8 @@ from joblib import Parallel, delayed
 DTYPE = {"complete_event_file": str,
          "segmented_event_file": str,
          "segment_boundaries_df": str}
-DTYPE_SEGMENT_BOUNDARIES = {"start_time": float,
-                            "end_time": float,
+DTYPE_SEGMENT_BOUNDARIES = {"start_time": int,
+                            "end_time": int,
                             "class": str}
 
 

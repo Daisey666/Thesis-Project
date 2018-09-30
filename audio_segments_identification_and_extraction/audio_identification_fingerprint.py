@@ -164,7 +164,7 @@ def get_segments_location(full_audio_fn, audio_segments_fn):
         n_steps -= 1
         frag_len_fp = (STEP * n_steps) + WINDOW_SIZE
         frag_len = fp_to_sample(frag_len_fp)
-        segments_info.append((float(full_audio_index / SAMPLE_RATE), float((full_audio_index+frag_len) / SAMPLE_RATE), "relevant"))
+        segments_info.append((int(full_audio_index), int(full_audio_index+frag_len), "relevant"))
         full_audio_fp_index += frag_len_fp
         audio_segments_fp_index += frag_len_fp
         full_audio_index += frag_len

@@ -2,11 +2,12 @@
 import collections
 import essentia
 import librosa
+import math
 import pandas as pd
 import numpy as np
 import essentia.standard as es
 from scipy.interpolate import Rbf
-
+# NOTE alla windows hops ecc must be expressed in number of samples
 # Global variables
 EXT = ".wav"
 EXT_SIZE = len(EXT)
@@ -32,8 +33,8 @@ DTYPE_GLOBAL = {"complete_event_file": str,
                 "speaker_harmonicity_stats_file": str,
                 "speaker_jitter_stats_file": str,
                 "speaker_shimmer_stats_file": str}
-DTYPE_SEGMENT_BOUNDARIES = {"start_time": float,
-                            "end_time": float,
+DTYPE_SEGMENT_BOUNDARIES = {"start_time": int,
+                            "end_time": int,
                             "class": str,
                             "audio_segment_file": str}
 DTYPE_PARAM = {"dx_pitch": float,
@@ -67,6 +68,17 @@ DTYPE_STATS = {"speaker": str,
                "std": float}
 
 File_Names_Tuple = collections.namedtuple("FileNamesTuple", "audio_fn segments_df_fn param_df_fn pitch_tier_df_fn intensity_tier_df_fn voice_report_df_fn silences_df_fn speech_df_fn pitch_stats_df_fn intensity_stats_df_fn harmonicity_stats_df_fn jitter_stats_df_fn shimmer_stats_df_fn")
+
+
+def map_to_window(time_stamp_sa, win_size, hop_size, sig_len):
+    # così poi puoi leggere i valori delle finestre come pitch[x:y] ad esempio
+    if time_stamp_sa < (win_size / 2):
+        return 0
+    elif time_stamp_sa > (sig_len - (win_size / 2)):
+        # Possibly return -1
+        return math.floor((sig_len - win_size) / hop_size)
+    else:
+        return math.floor((time_stamp_sa - (win_size / 2)) / hop_size)
 
 
 # NOTE sig len is expressed in number of samples, so is for win size and hop size
@@ -121,6 +133,7 @@ def get_features(fn_tuple, win_size, hop_size, norm, zero_out, sil_subst):
     entropy = es.Entropy()
     flux = es.Flux()
     roll_off = es.RollOff()
+    log_norm = es.UnaryOperator(type='log')
     chroma = []
     mfccs = []
     melbands = []
@@ -137,6 +150,7 @@ def get_features(fn_tuple, win_size, hop_size, norm, zero_out, sil_subst):
         mfcc_bands, mfcc_coeffs = mfcc(spec)
         mfccs.append(mfcc_coeffs)
         melbands.append(mfcc_bands)
+        melbands_log.append(log_norm(mfcc_bands))
         short_term_energy.append(energy(frame))
         short_term_entropy.append(entropy(np.absolute(frame)))
         spectral_centroid.append(centroid_t(spec))
@@ -151,6 +165,7 @@ def get_features(fn_tuple, win_size, hop_size, norm, zero_out, sil_subst):
     mfccs = essentia.array(mfccs)
     chroma = essentia.array(chroma[:, 1:]).T
     melbands = essentia.array(melbands)
+    melbands_log = essentia.array(melbands_log)
     short_term_energy = essentia.array(short_term_energy)
     short_term_entropy = essentia.array(short_term_entropy)
     spectral_centroid = essentia.array(spectral_centroid)
