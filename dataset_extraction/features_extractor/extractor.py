@@ -70,6 +70,11 @@ DTYPE_STATS = {"speaker": str,
 File_Names_Tuple = collections.namedtuple("FileNamesTuple", "audio_fn segments_df_fn param_df_fn pitch_tier_df_fn intensity_tier_df_fn voice_report_df_fn silences_df_fn speech_df_fn pitch_stats_df_fn intensity_stats_df_fn harmonicity_stats_df_fn jitter_stats_df_fn shimmer_stats_df_fn")
 
 
+def store_reults(file_name):
+    pool = essentia.Pool()
+    
+
+
 def map_to_window(time_stamp_sa, win_size, hop_size, sig_len):
     # così poi puoi leggere i valori delle finestre come pitch[x:y] ad esempio
     if time_stamp_sa < (win_size / 2):
