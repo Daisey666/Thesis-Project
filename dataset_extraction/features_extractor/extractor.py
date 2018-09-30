@@ -1,5 +1,7 @@
 # Imports
 import collections
+import essentia
+import librosa
 import pandas as pd
 import numpy as np
 import essentia.standard as es
@@ -91,16 +93,68 @@ def extract_praat_feature(feature_df, speech_info_df, silences_info_df, feature_
     return np.array(feature)
 
 
+def extract_delta(signal):
+    # TODO check if it's ok to extract delta in this way
+    delta_sig = signal - np.concatenate((np.array([0]), signal[:-1]))
+    return delta_sig
+
+
 def get_features(fn_tuple, win_size, hop_size, norm, zero_out, sil_subst):
     audio = es.MonoLoader(filename=fn_tuple.audio_fn, sampleRate=SAMPLE_RATE)()
     sig_len = len(audio)
     speech_info_df = pd.read_csv(fn_tuple.speech_df_fn, dtype=DTYPE_SPEECH_INFO)
     silences_df = pd.read_csv(fn_tuple.silences_df_fn, dtype=DTYPE_SILENCES_FROM_INTENSITY)
     pitch = extract_praat_feature(pd.read_csv(fn_tuple.pitch_tier_df_fn, dtype=DTYPE_PITCH_TIER), speech_info_df, silences_df, pd.read_csv(fn_tuple.pitch_stats_df_fn, dtype=DTYPE_STATS), win_size, hop_size, sig_len)
+    delta_pitch = extract_delta(pitch)
+    delta_delta_pitch = extract_delta(delta_pitch)
     intensity = extract_praat_feature(pd.read_csv(fn_tuple.intensity_tier_df_fn, dtype=DTYPE_INTENSITY_TIER), speech_info_df, silences_df, pd.read_csv(fn_tuple.intensity_stats_df_fn, dtype=DTYPE_STATS), win_size, hop_size, sig_len)
+    delta_intensity = extract_delta(intensity)
+    delta_delta_intensity = extract_delta(delta_intensity)
     voice_report_df = pd.read_csv(fn_tuple.voice_report_df_fn, DTYPE_VOICE_REPORT)
     harmonicity = extract_praat_feature(voice_report_df[["start_time", "end_time", "harmonicity"]], speech_info_df, silences_df, pd.read_csv(fn_tuple.harmonicity_stats_df_fn, dtype=DTYPE_STATS), win_size, hop_size, sig_len)
     jitter = extract_praat_feature(voice_report_df[["start_time", "end_time", "jitter"]], speech_info_df, silences_df, pd.read_csv(fn_tuple.jitter_stats_df_fn, dtype=DTYPE_STATS), win_size, hop_size, sig_len)
     shimmer = extract_praat_feature(voice_report_df[["start_time", "end_time", "shimmer"]], speech_info_df, silences_df, pd.read_csv(fn_tuple.shimmer_stats_df_fn, dtype=DTYPE_STATS), win_size, hop_size, sig_len)
-    spectrum = es.spectrum(audio, size=sig_len)
-    chromagram = es.
+    spectrum = es.Spectrum()
+    energy = es.Energy()
+    mfcc = es.MFCC()
+    centroid_t = es.SpectralCentroidTime()
+    entropy = es.Entropy()
+    flux = es.Flux()
+    roll_off = es.RollOff()
+    chroma = []
+    mfccs = []
+    melbands = []
+    melbands_log = []
+    short_term_energy = []
+    short_term_entropy = []
+    spectral_centroid = []
+    spectral_spread = []
+    spectral_entropy = []
+    spectral_flux = []
+    spectral_roll_off = []
+    for frame in es.FrameGenerator(audio, frameSize=win_size, hopSize=hop_size, lastFrameToEndOfFile=True, startFromZero=True):
+        spec = spectrum(frame)
+        mfcc_bands, mfcc_coeffs = mfcc(spec)
+        mfccs.append(mfcc_coeffs)
+        melbands.append(mfcc_bands)
+        short_term_energy.append(energy(frame))
+        short_term_entropy.append(entropy(np.absolute(frame)))
+        spectral_centroid.append(centroid_t(spec))
+        spectral_spread.append(np.std(spec))
+        spectral_entropy.append(entropy(np.absolute(spec)))
+        spectral_flux.append(flux(spec))
+        spectral_roll_off.append(roll_off(spec))
+    cqt_lbs = np.abs(librosa.cqt(audio, SAMPLE_RATE))
+    chroma_map_lbs = librosa.filters.cq_to_chroma(cqt_lbs.shape[0])
+    chroma = chroma_map_lbs.dot(cqt_lbs)
+    chroma = librosa.util.normalize(chroma, axis=0)
+    mfccs = essentia.array(mfccs)
+    chroma = essentia.array(chroma[:, 1:]).T
+    melbands = essentia.array(melbands)
+    short_term_energy = essentia.array(short_term_energy)
+    short_term_entropy = essentia.array(short_term_entropy)
+    spectral_centroid = essentia.array(spectral_centroid)
+    spectral_spread = essentia.array(spectral_spread)
+    spectral_entropy = essentia.array(spectral_entropy)
+    spectral_flux = essentia.array(spectral_flux)
+    spectral_roll_off = essentia.array(spectral_roll_off)
