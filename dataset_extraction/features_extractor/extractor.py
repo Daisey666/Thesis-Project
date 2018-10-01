@@ -76,7 +76,7 @@ File_Names_Tuple = collections.namedtuple("FileNamesTuple", "audio_fn segments_d
 Features_Tuple = collections.namedtuple("FeaturesTuple", "pitch delta_pitch delta_delta_pitch intensity delta_intensity delta_delta_intensity chromagram mfccs melbands melbands_log short_term_energy short_term_entropy spectral_centroid spectral_spread spectral_entropy spectral_flux spectral_roll_off")
 
 
-def store_reults(file_name, features, format):
+def store_reults(file_name, features, format="json"):
     pool = essentia.Pool()
     pool.add("pitch", features.pitch)
     pool.add("delta_pitch", features.delta_pitch)
@@ -116,20 +116,8 @@ def gen_file_names_tuple(fn_arr):
     return fn_tuple
 
 
-def map_to_window(time_stamp_sa, win_size, hop_size, sig_len):
-    # così poi puoi leggere i valori delle finestre come pitch[x:y] ad esempio
-    # vedere se è win size / 2 oppure hop size
-    if time_stamp_sa < (win_size / 2):
-        return 0
-    elif time_stamp_sa > (sig_len - (win_size / 2)):
-        # Previously was math.floor((sig_len - win_size) / hop_size)
-        return -1
-    else:
-        return math.floor((time_stamp_sa - (win_size / 2)) / hop_size)
-
-
 # NOTE sig len is expressed in number of samples, so is for win size and hop size
-def extract_praat_feature(feature_df, speech_info_df, silences_info_df, feature_stats_df, win_size, hop_size, sig_len, norm="mean", zero_out=True, sil_subst="mean"):
+def extract_praat_feature(feature_df, speech_info_df, silences_info_df, feature_stats_df, sig_len, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean"):
     feature_arr = np.array([])
     time_feature_values = feature_df.values
     for speaker, norm_value in feature_stats_df[["speaker", norm]].values:
@@ -158,15 +146,15 @@ def extract_delta(signal):
     return delta_sig
 
 
-def get_features(fn_tuple, features_fn_df, win_size, hop_size, norm, zero_out, sil_subst):
+def get_features(fn_tuple, features_fn_df, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean"):
     audio = es.MonoLoader(filename=fn_tuple.audio_fn, sampleRate=SAMPLE_RATE)()
     sig_len = len(audio)
     speech_info_df = pd.read_csv(fn_tuple.speech_df_fn, dtype=DTYPE_SPEECH_INFO)
     silences_df = pd.read_csv(fn_tuple.silences_df_fn, dtype=DTYPE_SILENCES_FROM_INTENSITY)
-    pitch = extract_praat_feature(pd.read_csv(fn_tuple.pitch_tier_df_fn, dtype=DTYPE_PITCH_TIER), speech_info_df, silences_df, pd.read_csv(fn_tuple.pitch_stats_df_fn, dtype=DTYPE_STATS), win_size, hop_size, sig_len)
+    pitch = extract_praat_feature(pd.read_csv(fn_tuple.pitch_tier_df_fn, dtype=DTYPE_PITCH_TIER), speech_info_df, silences_df, pd.read_csv(fn_tuple.pitch_stats_df_fn, dtype=DTYPE_STATS), win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
     delta_pitch = extract_delta(pitch)
     delta_delta_pitch = extract_delta(delta_pitch)
-    intensity = extract_praat_feature(pd.read_csv(fn_tuple.intensity_tier_df_fn, dtype=DTYPE_INTENSITY_TIER), speech_info_df, silences_df, pd.read_csv(fn_tuple.intensity_stats_df_fn, dtype=DTYPE_STATS), win_size, hop_size, sig_len)
+    intensity = extract_praat_feature(pd.read_csv(fn_tuple.intensity_tier_df_fn, dtype=DTYPE_INTENSITY_TIER), speech_info_df, silences_df, pd.read_csv(fn_tuple.intensity_stats_df_fn, dtype=DTYPE_STATS), win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
     delta_intensity = extract_delta(intensity)
     delta_delta_intensity = extract_delta(delta_intensity)
     voice_report_df = pd.read_csv(fn_tuple.voice_report_df_fn, DTYPE_VOICE_REPORT)
@@ -220,6 +208,30 @@ def get_features(fn_tuple, features_fn_df, win_size, hop_size, norm, zero_out, s
     spectral_entropy = essentia.array(spectral_entropy)
     spectral_flux = essentia.array(spectral_flux)
     spectral_roll_off = essentia.array(spectral_roll_off)
+    segments_df = pd.read_csv(fn_tuple.segments_df_fn, dtype=DTYPE_SEGMENT_BOUNDARIES)
+    segments_df = segments_df.join(features_fn_df)
+    # TODO add normalization of other features, word embeddings and speech rate
+    for start, end, file_name in segments_df[["start_time", "end_time", "features_file"]].values:
+        start_win = start // hop_size
+        end_win = end // hop_size
+        features = Features_Tuple(pitch=pitch[start_win:end_win],
+                                  delta_pitch=delta_pitch[start_win:end_win],
+                                  delta_delta_pitch=delta_delta_pitch[start_win:end_win],
+                                  intensity=intensity[start_win:end_win],
+                                  delta_intensity=delta_intensity[start_win:end_win],
+                                  delta_delta_intensity=delta_delta_intensity[start_win:end_win],
+                                  chromagram=chroma[start_win:end_win],
+                                  mfccs=mfccs[start_win:end_win],
+                                  melbands=melbands[start_win:end_win],
+                                  melbands_log=melbands_log[start_win:end_win],
+                                  short_term_energy=short_term_energy[start_win:end_win],
+                                  short_term_entropy=short_term_entropy[start_win:end_win],
+                                  spectral_centroid=spectral_centroid[start_win:end_win],
+                                  spectral_spread=spectral_spread[start_win:end_win],
+                                  spectral_entropy=spectral_entropy[start_win:end_win],
+                                  spectral_flux=spectral_flux[start_win:end_win],
+                                  spectral_roll_off=spectral_roll_off[start_win:end_win])
+        store_reults(file_name, features)
 
 
 def gen_feat_file_name(segment_fn, dest_path):
@@ -233,28 +245,28 @@ def gen_feat_file_names(audio_fn, segments_df_fn, dest_path):
     return fn_list
 
 
-def extract_features_serial(audio_info_df, dest_path, win_size, hop_size, norm="mean", zero_out=True, sil_subst="mean"):
+def extract_features_serial(audio_info_df, dest_path, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean"):
     tmp_ds_map = list(map(lambda x: gen_feat_file_names(x[0], x[1]), audio_info_df[["complete_event_file", "segment_boundaries_df"]].values))
     tmp_ds_map = reduce(lambda x, y: x + y, tmp_ds_map)
-    ds_map_df = pd.DataFrame(data=tmp_ds_map, columns=["complete_event_file", "segment_boundaries_df", "features_file"])
+    ds_map_df = pd.DataFrame(data=tmp_ds_map, columns=["complete_event_file", "audio_segment_file", "features_file"])
     for row in audio_info_df.values:
-        get_features(gen_file_names_tuple(row), ds_map_df[ds_map_df["complete_event_file"] == row[0]], win_size, hop_size, norm, zero_out, sil_subst)
+        get_features(gen_file_names_tuple(row), ds_map_df[ds_map_df["complete_event_file"] == row[0]], win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
     ds_map_df_fn = dest_path + "data_set_map" + TAB_EXT
     ds_map_df.to_csv(ds_map_df_fn, index=False)
 
 
-def extract_features_parallel(audio_info_df, dest_path, win_size, hop_size, norm="mean", zero_out=True, sil_subst="mean", n=-1):
+def extract_features_parallel(audio_info_df, dest_path, n, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean"):
     tmp_ds_map = list(map(lambda x: gen_feat_file_names(x[0], x[1]), audio_info_df[["complete_event_file", "segment_boundaries_df"]].values))
     tmp_ds_map = reduce(lambda x, y: x + y, tmp_ds_map)
     ds_map_df = pd.DataFrame(data=tmp_ds_map, columns=["complete_event_file", "segment_boundaries_df", "features_file"])
-    Parallel(n_jobs=n, backend="threading")(delayed(get_features)(gen_file_names_tuple(x), ds_map_df[ds_map_df["complete_event_file"] == x[0]], win_size, hop_size, norm, zero_out, sil_subst) for x in audio_info_df.values)
+    Parallel(n_jobs=n, backend="threading")(delayed(get_features)(gen_file_names_tuple(x), ds_map_df[ds_map_df["complete_event_file"] == x[0]], win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst) for x in audio_info_df.values)
     ds_map_df_fn = dest_path + "data_set_map" + TAB_EXT
     ds_map_df.to_csv(ds_map_df_fn, index=False)
 
 
-def features_extraction(audio_info_df_fn, dest_path, win_size, hop_size, norm="mean", zero_out=True, sil_subst="mean", parallel=False, n_jobs=-1):
+def features_extraction(audio_info_df_fn, dest_path, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean", parallel=False, n_jobs=-1):
     df = pd.read_csv(audio_info_df_fn, dtype=DTYPE_GLOBAL)
     if parallel:
-        extract_features_parallel(df, dest_path, n_jobs)
+        extract_features_parallel(df, dest_path, n_jobs, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
     else:
-        extract_features_serial(df, dest_path)
+        extract_features_serial(df, dest_path, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
