@@ -68,11 +68,29 @@ DTYPE_STATS = {"speaker": str,
                "std": float}
 
 File_Names_Tuple = collections.namedtuple("FileNamesTuple", "audio_fn segments_df_fn param_df_fn pitch_tier_df_fn intensity_tier_df_fn voice_report_df_fn silences_df_fn speech_df_fn pitch_stats_df_fn intensity_stats_df_fn harmonicity_stats_df_fn jitter_stats_df_fn shimmer_stats_df_fn")
+Features_Tuple = collections.namedtuple("FeaturesTuple", "pitch delta_pitch delta_delta_pitch intensity delta_intensity delta_delta_intensity chromagram mfccs melbands melbands_log short_term_energy short_term_entropy spectral_centroid spectral_spread spectral_entropy spectral_flux spectral_roll_off")
 
 
-def store_reults(file_name):
+def store_reults(file_name, features, format):
     pool = essentia.Pool()
-    
+    pool.add("pitch", features.pitch)
+    pool.add("delta_pitch", features.delta_pitch)
+    pool.add("delta_delta_pitch", features.delta_delta_pitch)
+    pool.add("intensity", features.intensity)
+    pool.add("delta_intensity", features.delta_intensity)
+    pool.add("delta_delta_intensity", features.delta_delta_intensity)
+    pool.add("chromagram", features.chromagram)
+    pool.add("mfccs", features.mfccs)
+    pool.add("melbands", features.melbands)
+    pool.add("melbands_log", features.melbands_log)
+    pool.add("short_term_energy", features.short_term_energy)
+    pool.add("short_term_entropy", features.short_term_entropy)
+    pool.add("spectral_centroid", features.spectral_centroid)
+    pool.add("spectral_spread", features.spectral_spread)
+    pool.add("spectral_entropy", features.spectral_entropy)
+    pool.add("spectral_flux", features.spectral_flux)
+    pool.add("spectral_roll_off", features.spectral_roll_off)
+    es.YamlOutput(filename=file_name, format=format)(pool)
 
 
 def map_to_window(time_stamp_sa, win_size, hop_size, sig_len):
