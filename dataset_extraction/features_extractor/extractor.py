@@ -117,8 +117,7 @@ def gen_file_names_tuple(fn_arr):
 
 
 def extract_delta(signal):
-    # TODO check if it's ok to extract delta in this way
-    delta_sig = signal - np.concatenate((np.array([0]), signal[:-1]))
+    delta_sig = np.concatenate((np.array([0]), signal[:-1])) - signal
     return delta_sig
 
 
@@ -130,6 +129,7 @@ def extract_praat_feature(feature_df, speech_info_df, silences_info_df, feature_
         spk_df = speech_info_df[speech_info_df["speaker_tag"] == speaker]
         speech_intervals = spk_df[["start_time", "end_time"]].values
         ts, tmp = np.where((time_feature_values[:, 0, None] >= speech_intervals[:, 0]) & (time_feature_values[:, 0, None] < speech_intervals[:, 1]))
+        time_feature_values[ts, 1] -= norm_value
         feature_arr = np.concatenate((feature_arr, time_feature_values[ts]), axis=0)
     # TODO check if to sort
     rbfi = Rbf(feature_arr[:, 0], feature_arr[:, 1], function=interpolation)
@@ -163,8 +163,48 @@ def extract_praat_feature(feature_df, speech_info_df, silences_info_df, feature_
         return np.array(feature)
 
 
-def post_process_features(feature, speech_info_df, silences_info_df, sig_len, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean"):
-    return 1
+def extract_speaker_stats(time_feature_values, speech_info_df):
+    # NOTE tecnically it should handle also multidimensional arrays
+    feature_stats_columns = ["speaker", "min", "max", "mean", "median", "q1", "q2", "q3", "std"]
+    feature_stats = []
+    for speaker in speech_info_df.speaker_tag.unique():
+        spk_df = speech_info_df[speech_info_df["speaker_tag"] == speaker]
+        speech_intervals = spk_df[["start_time", "end_time"]].values
+        time_stamps, tmp = np.where((time_feature_values[:, 0, None] >= speech_intervals[:, 0, None]) & (time_feature_values[:, 0, None] < speech_intervals[:, 1, None]))
+        speaker_features = time_feature_values[time_stamps, 1]
+        feature_stats.append((speaker,
+                              np.amin(speaker_features, axis=0),
+                              np.amax(speaker_features, axis=0),
+                              np.mean(speaker_features, axis=0),
+                              np.median(speaker_features, axis=0),
+                              np.percentile(speaker_features, 25, axis=0),
+                              np.percentile(speaker_features, 50, axis=0),
+                              np.percentile(speaker_features, 75, axis=0),
+                              np.std(speaker_features, axis=0)))
+    feature_stats_df = pd.DataFrame(data=feature_stats, columns=feature_stats_columns)
+    return feature_stats_df
+
+
+def post_process_feature(feature, speech_info_df, silences_info_df, sig_len, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean"):
+    # NOTE I assumed each window represents its central value
+    # NOTE this may not handle correctly multidimensional features, but apparently (from repl tests) it should
+    # TODO check if dividing by sample rate is correct
+    time_feature_values = np.array([(((i * hop_size) + (win_size / 2)) / SAMPLE_RATE, feature[i]) for i in range(feature.shape[0])])
+    feature_stats_df = extract_speaker_stats(time_feature_values, speech_info_df)
+    for speaker, norm_value in feature_stats_df[["speaker", norm]].values:
+        spk_df = speech_info_df[speech_info_df["speaker_tag"] == speaker]
+        speech_intervals = spk_df[["start_time", "end_time"]].values
+        ts, tmp = np.where((time_feature_values[:, 0, None] >= speech_intervals[:, 0]) & (time_feature_values[:, 0, None] < speech_intervals[:, 1]))
+        # NOTE I'm note shure this is correct
+        feature[ts] -= norm_value
+    if zero_out:
+        tmp_df = silences_info_df[silences_info_df["text"] == "silent"]
+        for tmin, tmax in tmp_df[["tmin", "tmax"]].values:
+            feature[(tmin * SAMPLE_RATE) // hop_size:(tmax * SAMPLE_RATE) // hop_size] = 0
+    else:
+        # TODO handle silences differently from zeroing out
+        return 1
+    return feature
 
 
 def get_features(fn_tuple, features_fn_df, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean", interpolation="gaussian"):
@@ -225,6 +265,17 @@ def get_features(fn_tuple, features_fn_df, win_size=1024, hop_size=512, norm="me
     spectral_entropy = essentia.array(spectral_entropy)
     spectral_flux = essentia.array(spectral_flux)
     spectral_roll_off = essentia.array(spectral_roll_off)
+    mfccs = post_process_feature(mfccs, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
+    chroma = post_process_feature(chroma, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
+    melbands = post_process_feature(melbands, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
+    melbands_log = post_process_feature(melbands_log, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
+    short_term_energy = post_process_feature(short_term_energy, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
+    short_term_entropy = post_process_feature(short_term_entropy, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
+    spectral_centroid = post_process_feature(spectral_centroid, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
+    spectral_spread = post_process_feature(spectral_spread, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
+    spectral_entropy = post_process_feature(spectral_entropy, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
+    spectral_flux = post_process_feature(spectral_flux, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
+    spectral_roll_off = post_process_feature(spectral_roll_off, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
     segments_df = pd.read_csv(fn_tuple.segments_df_fn, dtype=DTYPE_SEGMENT_BOUNDARIES)
     segments_df = segments_df.join(features_fn_df)
     # TODO add normalization of other features, word embeddings and speech rate
@@ -252,6 +303,9 @@ def get_features(fn_tuple, features_fn_df, win_size=1024, hop_size=512, norm="me
                                   spectral_flux=spectral_flux[start_win:end_win],
                                   spectral_roll_off=spectral_roll_off[start_win:end_win])
         store_reults(file_name, features)
+
+
+# TODO gestire variabili interpolazione e postprocessing
 
 
 def gen_feat_file_name(segment_fn, dest_path):

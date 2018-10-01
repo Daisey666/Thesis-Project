@@ -61,7 +61,6 @@ def extract_speaker_intensity_stats(intensity_tier_df_fn, speech_info_df_fn, int
                                 np.std(speaker_intensities)))
     intensity_stats_df = pd.DataFrame(data=intensity_stats, columns=intensity_stats_columns)
     intensity_stats_df.to_csv(intensity_stats_df_fn, index=False)
-    return 1
 
 
 def intensity_stats_extraction_serial(audio_info_df_fn, audio_info_df, fn_list, dest_path):
