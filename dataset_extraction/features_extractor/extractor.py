@@ -73,7 +73,7 @@ DTYPE_STATS = {"speaker": str,
                "std": float}
 
 File_Names_Tuple = collections.namedtuple("FileNamesTuple", "audio_fn segments_df_fn param_df_fn pitch_tier_df_fn intensity_tier_df_fn voice_report_df_fn silences_df_fn speech_df_fn pitch_stats_df_fn intensity_stats_df_fn harmonicity_stats_df_fn jitter_stats_df_fn shimmer_stats_df_fn")
-Features_Tuple = collections.namedtuple("FeaturesTuple", "pitch delta_pitch delta_delta_pitch intensity delta_intensity delta_delta_intensity chromagram mfccs melbands melbands_log short_term_energy short_term_entropy spectral_centroid spectral_spread spectral_entropy spectral_flux spectral_roll_off")
+Features_Tuple = collections.namedtuple("FeaturesTuple", "pitch delta_pitch delta_delta_pitch intensity delta_intensity delta_delta_intensity harmonicity jitter shimmer chromagram mfccs melbands melbands_log short_term_energy short_term_entropy spectral_centroid spectral_spread spectral_entropy spectral_flux spectral_roll_off")
 
 
 def store_reults(file_name, features, format="json"):
@@ -220,6 +220,9 @@ def get_features(fn_tuple, features_fn_df, win_size=1024, hop_size=512, norm="me
                                   intensity=intensity[start_win:end_win],
                                   delta_intensity=delta_intensity[start_win:end_win],
                                   delta_delta_intensity=delta_delta_intensity[start_win:end_win],
+                                  harmonicity=harmonicity[start_win:end_win],
+                                  jitter=jitter[start_win:end_win],
+                                  shimmer=shimmer[start_win:end_win],
                                   chromagram=chroma[start_win:end_win],
                                   mfccs=mfccs[start_win:end_win],
                                   melbands=melbands[start_win:end_win],
