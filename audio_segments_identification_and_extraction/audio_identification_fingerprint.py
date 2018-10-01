@@ -32,6 +32,11 @@ def fp_to_sample(time):
     return math.floor(time * FP_LEN * SAMPLE_RATE)
 
 
+def adapt_to_hop(time_stamp, hop_size=512):
+    adapted_ts = int(hop_size * (time_stamp // hop_size))
+    return adapted_ts
+
+
 def get_uncompressed_chromaprint(audio):
     # Use Essentia wrapper for Chromaprint together with AcoustId to extract
     # the uncompressed audio fingeprint.
@@ -116,7 +121,7 @@ def get_correlation_score(sig_full, sig_frag):
     return score
 
 
-def get_segments_location(full_audio_fn, audio_segments_fn):
+def get_segments_location(full_audio_fn, audio_segments_fn, hop_size=512):
     full_audio = es.MonoLoader(filename=full_audio_fn, sampleRate=SAMPLE_RATE)()
     full_audio_normalized = full_audio / MAX
     full_audio_fp = get_uncompressed_chromaprint(full_audio)
@@ -164,7 +169,7 @@ def get_segments_location(full_audio_fn, audio_segments_fn):
         n_steps -= 1
         frag_len_fp = (STEP * n_steps) + WINDOW_SIZE
         frag_len = fp_to_sample(frag_len_fp)
-        segments_info.append((int(full_audio_index), int(full_audio_index+frag_len), "relevant"))
+        segments_info.append((adapt_to_hop(full_audio_index, hop_size=hop_size), adapt_to_hop(full_audio_index+frag_len, hop_size=hop_size), "relevant"))
         full_audio_fp_index += frag_len_fp
         audio_segments_fp_index += frag_len_fp
         full_audio_index += frag_len
@@ -172,23 +177,23 @@ def get_segments_location(full_audio_fn, audio_segments_fn):
     return segments_info
 
 
-def generate_time_boundaries_df(full_audio_fn, audio_segments_fn, df_fn):
-    tmp_data = get_segments_location(full_audio_fn, audio_segments_fn)
+def generate_time_boundaries_df(full_audio_fn, audio_segments_fn, df_fn, hop_size=512):
+    tmp_data = get_segments_location(full_audio_fn, audio_segments_fn, hop_size=hop_size)
     tmp_data = sorted(tmp_data, key=itemgetter(0))
     df = pd.DataFrame(data=tmp_data, columns=["start_time", "end_time", "class"])
     df.to_csv(df_fn, index=False)
 
 
-def extract_time_boundaries_serial(audio_info_list):
+def extract_time_boundaries_serial(audio_info_list, hop_size=512):
     for full_audio_fn, audio_segments_fn, df_fn in audio_info_list:
-        generate_time_boundaries_df(full_audio_fn, audio_segments_fn, df_fn)
+        generate_time_boundaries_df(full_audio_fn, audio_segments_fn, df_fn, hop_size=hop_size)
 
 
-def extract_time_boundaries_parallel(audio_info_list, n):
-    Parallel(n_jobs=n, backend="threading")(delayed(generate_time_boundaries_df)(x, y, z) for x, y, z in audio_info_list)
+def extract_time_boundaries_parallel(audio_info_list, n, hop_size=512):
+    Parallel(n_jobs=n, backend="threading")(delayed(generate_time_boundaries_df)(x, y, z, hop_size=hop_size) for x, y, z in audio_info_list)
 
 
-def identify_audio_segments_positions(complete_event_files_path, segmented_event_files_path, data_frames_path, parallel=False, n_jobs=-1):
+def identify_audio_segments_positions(complete_event_files_path, segmented_event_files_path, data_frames_path, hop_size=512, parallel=False, n_jobs=-1):
     # TODO check if events and segments are correctly coupled
     full_event_audio_list = os.listdir(complete_event_files_path)
     full_event_audio_list = [complete_event_files_path + x for x in full_event_audio_list]
@@ -197,8 +202,8 @@ def identify_audio_segments_positions(complete_event_files_path, segmented_event
     data_frames_list = [data_frames_path + x[:-EXT_SIZE] + ".csv" for x in full_event_audio_list]
     audio_info_list = (full_event_audio_list, segmented_audio_list, data_frames_list)
     if parallel:
-        extract_time_boundaries_parallel(audio_info_list, n_jobs)
+        extract_time_boundaries_parallel(audio_info_list, n_jobs, hop_size=hop_size)
     else:
-        extract_time_boundaries_serial(audio_info_list)
+        extract_time_boundaries_serial(audio_info_list, hop_size=hop_size)
     df = pd.DataFrame(data=audio_info_list, columns=["complete_event_file", "segmented_event_file", "segment_boundaries_df"])
     df.to_csv(data_frames_path + "segments_info.csv", index=False)
