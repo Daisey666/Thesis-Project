@@ -117,7 +117,7 @@ def gen_file_names_tuple(fn_arr):
 
 
 # NOTE sig len is expressed in number of samples, so is for win size and hop size
-def extract_praat_feature(feature_df, speech_info_df, silences_info_df, feature_stats_df, sig_len, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean"):
+def extract_praat_feature(feature_df, speech_info_df, silences_info_df, feature_stats_df, sig_len, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean", deltas=False, interpolation="gaussian"):
     feature_arr = np.array([])
     time_feature_values = feature_df.values
     for speaker, norm_value in feature_stats_df[["speaker", norm]].values:
@@ -126,7 +126,7 @@ def extract_praat_feature(feature_df, speech_info_df, silences_info_df, feature_
         ts, tmp = np.where((time_feature_values[:, 0, None] >= speech_intervals[:, 0]) & (time_feature_values[:, 0, None] < speech_intervals[:, 1]))
         feature_arr = np.concatenate((feature_arr, time_feature_values[ts]), axis=0)
     # TODO check if to sort
-    rbfi = Rbf(feature_arr[:, 0], feature_arr[:, 1], function="gaussian")
+    rbfi = Rbf(feature_arr[:, 0], feature_arr[:, 1], function=interpolation)
     xi = np.linspace(0, sig_len / SAMPLE_RATE, num=sig_len)
     di = rbfi(xi)
     if zero_out:
