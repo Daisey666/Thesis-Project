@@ -116,6 +116,12 @@ def gen_file_names_tuple(fn_arr):
     return fn_tuple
 
 
+def extract_delta(signal):
+    # TODO check if it's ok to extract delta in this way
+    delta_sig = signal - np.concatenate((np.array([0]), signal[:-1]))
+    return delta_sig
+
+
 # NOTE sig len is expressed in number of samples, so is for win size and hop size
 def extract_praat_feature(feature_df, speech_info_df, silences_info_df, feature_stats_df, sig_len, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean", deltas=False, interpolation="gaussian"):
     feature_arr = np.array([])
@@ -129,34 +135,45 @@ def extract_praat_feature(feature_df, speech_info_df, silences_info_df, feature_
     rbfi = Rbf(feature_arr[:, 0], feature_arr[:, 1], function=interpolation)
     xi = np.linspace(0, sig_len / SAMPLE_RATE, num=sig_len)
     di = rbfi(xi)
-    if zero_out:
-        tmp_df = silences_info_df[silences_info_df["text"] == "silent"]
-        for tmin, tmax in tmp_df[["tmin", "tmax"]].values:
-            di[tmin:tmax] = 0
+    if deltas:
+        delta_di = extract_delta(di)
+        delta_delta_di = extract_delta(delta_di)
+        if zero_out:
+            tmp_df = silences_info_df[silences_info_df["text"] == "silent"]
+            for tmin, tmax in tmp_df[["tmin", "tmax"]].values:
+                di[tmin:tmax] = 0
+                delta_di[tmin:tmax] = 0
+                delta_delta_di[tmin:tmax] = 0
+        else:
+            # TODO handle silences differently from zeroing out
+            return 1
+        feature = list(map(lambda x: np.mean(x), [di[t:min(di.shape[0], t + win_size)] for t in range(0, di.shape[0], hop_size)]))
+        delta_feature = list(map(lambda x: np.mean(x), [delta_di[t:min(delta_di.shape[0], t + win_size)] for t in range(0, delta_di.shape[0], hop_size)]))
+        delta_delta_feature = list(map(lambda x: np.mean(x), [delta_delta_di[t:min(delta_delta_di.shape[0], t + win_size)] for t in range(0, delta_delta_di.shape[0], hop_size)]))
+        return np.array(feature), np.array(delta_feature), np.array(delta_delta_feature)
     else:
-        # TODO handle silences differently from zeroing out
-        return 1
-    feature = list(map(lambda x: np.mean(x), [di[t:min(di.shape[0], t + win_size)] for t in range(0, di.shape[0], hop_size)]))
-    return np.array(feature)
+        if zero_out:
+            tmp_df = silences_info_df[silences_info_df["text"] == "silent"]
+            for tmin, tmax in tmp_df[["tmin", "tmax"]].values:
+                di[tmin:tmax] = 0
+        else:
+            # TODO handle silences differently from zeroing out
+            return 1
+        feature = list(map(lambda x: np.mean(x), [di[t:min(di.shape[0], t + win_size)] for t in range(0, di.shape[0], hop_size)]))
+        return np.array(feature)
 
 
-def extract_delta(signal):
-    # TODO check if it's ok to extract delta in this way
-    delta_sig = signal - np.concatenate((np.array([0]), signal[:-1]))
-    return delta_sig
+def post_process_features(feature, speech_info_df, silences_info_df, sig_len, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean"):
+    return 1
 
 
-def get_features(fn_tuple, features_fn_df, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean"):
+def get_features(fn_tuple, features_fn_df, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean", interpolation="gaussian"):
     audio = es.MonoLoader(filename=fn_tuple.audio_fn, sampleRate=SAMPLE_RATE)()
     sig_len = len(audio)
     speech_info_df = pd.read_csv(fn_tuple.speech_df_fn, dtype=DTYPE_SPEECH_INFO)
     silences_df = pd.read_csv(fn_tuple.silences_df_fn, dtype=DTYPE_SILENCES_FROM_INTENSITY)
-    pitch = extract_praat_feature(pd.read_csv(fn_tuple.pitch_tier_df_fn, dtype=DTYPE_PITCH_TIER), speech_info_df, silences_df, pd.read_csv(fn_tuple.pitch_stats_df_fn, dtype=DTYPE_STATS), win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
-    delta_pitch = extract_delta(pitch)
-    delta_delta_pitch = extract_delta(delta_pitch)
-    intensity = extract_praat_feature(pd.read_csv(fn_tuple.intensity_tier_df_fn, dtype=DTYPE_INTENSITY_TIER), speech_info_df, silences_df, pd.read_csv(fn_tuple.intensity_stats_df_fn, dtype=DTYPE_STATS), win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
-    delta_intensity = extract_delta(intensity)
-    delta_delta_intensity = extract_delta(delta_intensity)
+    pitch, delta_pitch, delta_delta_pitch = extract_praat_feature(pd.read_csv(fn_tuple.pitch_tier_df_fn, dtype=DTYPE_PITCH_TIER), speech_info_df, silences_df, pd.read_csv(fn_tuple.pitch_stats_df_fn, dtype=DTYPE_STATS), win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst, deltas=True, interpolation=interpolation)
+    intensity, delta_intensity, delta_delta_intensity = extract_praat_feature(pd.read_csv(fn_tuple.intensity_tier_df_fn, dtype=DTYPE_INTENSITY_TIER), speech_info_df, silences_df, pd.read_csv(fn_tuple.intensity_stats_df_fn, dtype=DTYPE_STATS), win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst, deltas=True, interpolation=interpolation)
     voice_report_df = pd.read_csv(fn_tuple.voice_report_df_fn, DTYPE_VOICE_REPORT)
     harmonicity = extract_praat_feature(voice_report_df[["start_time", "end_time", "harmonicity"]], speech_info_df, silences_df, pd.read_csv(fn_tuple.harmonicity_stats_df_fn, dtype=DTYPE_STATS), win_size, hop_size, sig_len)
     jitter = extract_praat_feature(voice_report_df[["start_time", "end_time", "jitter"]], speech_info_df, silences_df, pd.read_csv(fn_tuple.jitter_stats_df_fn, dtype=DTYPE_STATS), win_size, hop_size, sig_len)
