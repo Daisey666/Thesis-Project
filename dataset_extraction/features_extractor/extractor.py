@@ -10,6 +10,7 @@ import essentia.standard as es
 from scipy.interpolate import Rbf
 from joblib import Parallel, delayed
 from functools import reduce
+from gensim.models import Word2Vec
 # NOTE all windows hops ecc must be expressed in number of samples
 # Global variables
 EXT = ".wav"
@@ -17,6 +18,7 @@ EXT_SIZE = len(EXT)
 SAMPLE_RATE = 44100
 TAB_EXT = ".csv"
 FEATURE_JSON = "_features.json"
+WORD_VECTOR_MODEL = "resources/word_vectors/wiki_iter=5_algorithm=skipgram_window=10_size=300_neg-samples=10.m"
 # Data types
 DTYPE_GLOBAL = {"complete_event_file": str,
                 "segmented_event_file": str,
@@ -73,7 +75,7 @@ DTYPE_STATS = {"speaker": str,
                "std": float}
 
 File_Names_Tuple = collections.namedtuple("FileNamesTuple", "audio_fn segments_df_fn param_df_fn pitch_tier_df_fn intensity_tier_df_fn voice_report_df_fn silences_df_fn speech_df_fn pitch_stats_df_fn intensity_stats_df_fn harmonicity_stats_df_fn jitter_stats_df_fn shimmer_stats_df_fn")
-Features_Tuple = collections.namedtuple("FeaturesTuple", "pitch delta_pitch delta_delta_pitch intensity delta_intensity delta_delta_intensity harmonicity jitter shimmer chromagram mfccs melbands melbands_log short_term_energy short_term_entropy spectral_centroid spectral_spread spectral_entropy spectral_flux spectral_roll_off")
+Features_Tuple = collections.namedtuple("FeaturesTuple", "pitch delta_pitch delta_delta_pitch intensity delta_intensity delta_delta_intensity harmonicity jitter shimmer silences chromagram mfccs melbands melbands_log short_term_energy short_term_entropy spectral_centroid spectral_spread spectral_entropy spectral_flux spectral_roll_off zero_crossing_rate onsets onset_rate word_embeddings")
 
 
 def store_reults(file_name, features, format="json"):
@@ -84,6 +86,10 @@ def store_reults(file_name, features, format="json"):
     pool.add("intensity", features.intensity)
     pool.add("delta_intensity", features.delta_intensity)
     pool.add("delta_delta_intensity", features.delta_delta_intensity)
+    pool.add("harmonicity", features.harmonicity)
+    pool.add("jitter", features.jitter)
+    pool.add("shimmer", features.shimmer)
+    pool.add("silences", features.silences)
     pool.add("chromagram", features.chromagram)
     pool.add("mfccs", features.mfccs)
     pool.add("melbands", features.melbands)
@@ -95,6 +101,10 @@ def store_reults(file_name, features, format="json"):
     pool.add("spectral_entropy", features.spectral_entropy)
     pool.add("spectral_flux", features.spectral_flux)
     pool.add("spectral_roll_off", features.spectral_roll_off)
+    pool.add("zero_crossing_rate", features.zero_crossing_rate)
+    pool.add("onsets", features.onsets)
+    pool.add("onset_rate", features.onset_rate)
+    pool.add("word_embeddings", features.word_embeddings)
     es.YamlOutput(filename=file_name, format=format)(pool)
 
 
@@ -163,6 +173,22 @@ def extract_praat_feature(feature_df, speech_info_df, silences_info_df, feature_
         return np.array(feature)
 
 
+def extract_silences(silences_info_df, n_win, hop_size=512):
+    silences = np.zeros(n_win)
+    tmp_df = silences_info_df[silences_info_df["text"] == "silent"]
+    for tmin, tmax in tmp_df[["tmin", "tmax"]].values:
+        silences[tmin//hop_size:tmax//hop_size] = 1
+    return silences
+
+
+def extract_word_embeddings(speech_info_df, n_win, hop_size=512):
+    model = Word2Vec.load(WORD_VECTOR_MODEL)
+    word_embeddings = np.empty((n_win, 300), np.zeros(300))
+    for word, start_time, end_time in speech_info_df["word", "start_time", "end_time"].values:
+        word_embeddings[start_time//hop_size:end_time//hop_size] = model.wv[word]
+    return word_embeddings
+
+
 def extract_speaker_stats(time_feature_values, speech_info_df):
     # NOTE tecnically it should handle also multidimensional arrays
     feature_stats_columns = ["speaker", "min", "max", "mean", "median", "q1", "q2", "q3", "std"]
@@ -223,8 +249,11 @@ def get_features(fn_tuple, features_fn_df, win_size=1024, hop_size=512, norm="me
     mfcc = es.MFCC()
     centroid_t = es.SpectralCentroidTime()
     entropy = es.Entropy()
+    power_spectrum = es.PowerSpectrum()
     flux = es.Flux()
     roll_off = es.RollOff()
+    zero_crossing = es.ZeroCrossingRate()
+    onset = es.OnsetRate()
     log_norm = es.UnaryOperator(type='log')
     chroma = []
     mfccs = []
@@ -237,6 +266,9 @@ def get_features(fn_tuple, features_fn_df, win_size=1024, hop_size=512, norm="me
     spectral_entropy = []
     spectral_flux = []
     spectral_roll_off = []
+    zero_crossing_rate = []
+    onsets = []
+    onset_rate = []
     for frame in es.FrameGenerator(audio, frameSize=win_size, hopSize=hop_size, lastFrameToEndOfFile=True, startFromZero=True):
         spec = spectrum(frame)
         mfcc_bands, mfcc_coeffs = mfcc(spec)
@@ -244,12 +276,18 @@ def get_features(fn_tuple, features_fn_df, win_size=1024, hop_size=512, norm="me
         melbands.append(mfcc_bands)
         melbands_log.append(log_norm(mfcc_bands))
         short_term_energy.append(energy(frame))
-        short_term_entropy.append(entropy(np.absolute(frame)))
+        short_term_entropy.append(entropy(np.power(frame, 2)))
         spectral_centroid.append(centroid_t(spec))
         spectral_spread.append(np.std(spec))
-        spectral_entropy.append(entropy(np.absolute(spec)))
+        tmp_power_spectral_density = power_spectrum(spec[:-1])  # Spectrum must have even length
+        tmp_power_spectral_density_normalized = tmp_power_spectral_density / np.sum(tmp_power_spectral_density)
+        spectral_entropy.append(entropy(tmp_power_spectral_density_normalized))
         spectral_flux.append(flux(spec))
         spectral_roll_off.append(roll_off(spec))
+        zero_crossing_rate.append(zero_crossing(frame))
+        ons, onsr = onset(frame)
+        onsets.append(ons)
+        onset_rate.append(onsr)
     cqt_lbs = np.abs(librosa.cqt(audio, SAMPLE_RATE))
     chroma_map_lbs = librosa.filters.cq_to_chroma(cqt_lbs.shape[0])
     chroma = chroma_map_lbs.dot(cqt_lbs)
@@ -265,6 +303,11 @@ def get_features(fn_tuple, features_fn_df, win_size=1024, hop_size=512, norm="me
     spectral_entropy = essentia.array(spectral_entropy)
     spectral_flux = essentia.array(spectral_flux)
     spectral_roll_off = essentia.array(spectral_roll_off)
+    zero_crossing_rate = essentia.array(zero_crossing_rate)
+    onsets = essentia.array(onsets)
+    onset_rate = essentia.array(onset_rate)
+    silences = extract_silences(silences_df, pitch.shape[0], hop_size=hop_size)
+    word_embeddings = extract_word_embeddings(speech_info_df, pitch.shape[0], hop_size=hop_size)
     mfccs = post_process_feature(mfccs, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
     chroma = post_process_feature(chroma, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
     melbands = post_process_feature(melbands, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
@@ -276,6 +319,9 @@ def get_features(fn_tuple, features_fn_df, win_size=1024, hop_size=512, norm="me
     spectral_entropy = post_process_feature(spectral_entropy, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
     spectral_flux = post_process_feature(spectral_flux, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
     spectral_roll_off = post_process_feature(spectral_roll_off, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
+    zero_crossing_rate = post_process_feature(zero_crossing_rate, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
+    # onsets = post_process_feature(onsets, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
+    onset_rate = post_process_feature(onset_rate, speech_info_df, silences_df, sig_len, win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
     segments_df = pd.read_csv(fn_tuple.segments_df_fn, dtype=DTYPE_SEGMENT_BOUNDARIES)
     segments_df = segments_df.join(features_fn_df)
     # TODO add normalization of other features, word embeddings and speech rate
@@ -291,6 +337,7 @@ def get_features(fn_tuple, features_fn_df, win_size=1024, hop_size=512, norm="me
                                   harmonicity=harmonicity[start_win:end_win],
                                   jitter=jitter[start_win:end_win],
                                   shimmer=shimmer[start_win:end_win],
+                                  silences=silences[start_win:end_win],
                                   chromagram=chroma[start_win:end_win],
                                   mfccs=mfccs[start_win:end_win],
                                   melbands=melbands[start_win:end_win],
@@ -301,7 +348,11 @@ def get_features(fn_tuple, features_fn_df, win_size=1024, hop_size=512, norm="me
                                   spectral_spread=spectral_spread[start_win:end_win],
                                   spectral_entropy=spectral_entropy[start_win:end_win],
                                   spectral_flux=spectral_flux[start_win:end_win],
-                                  spectral_roll_off=spectral_roll_off[start_win:end_win])
+                                  spectral_roll_off=spectral_roll_off[start_win:end_win],
+                                  zero_crossing_rate=zero_crossing_rate[start_win:end_win],
+                                  onsets=onsets[start_win:end_win],
+                                  onset_rate=onset_rate[start_win:end_win],
+                                  word_embeddings=word_embeddings[start_win:end_win])
         store_reults(file_name, features)
 
 
@@ -315,14 +366,14 @@ def gen_feat_file_name(segment_fn, dest_path):
 
 def gen_feat_file_names(audio_fn, segments_df_fn, dest_path):
     segments_df = pd.read_csv(segments_df_fn, dtype=DTYPE_SEGMENT_BOUNDARIES)
-    fn_list = [(audio_fn, x, gen_feat_file_name(x, dest_path)) for x in segments_df["audio_segment_file"].values]
+    fn_list = [(audio_fn, x[0], gen_feat_file_name(x[0], dest_path), x[1]) for x in segments_df[["audio_segment_file", "class"]].values]
     return fn_list
 
 
 def extract_features_serial(audio_info_df, dest_path, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean"):
     tmp_ds_map = list(map(lambda x: gen_feat_file_names(x[0], x[1]), audio_info_df[["complete_event_file", "segment_boundaries_df"]].values))
     tmp_ds_map = reduce(lambda x, y: x + y, tmp_ds_map)
-    ds_map_df = pd.DataFrame(data=tmp_ds_map, columns=["complete_event_file", "audio_segment_file", "features_file"])
+    ds_map_df = pd.DataFrame(data=tmp_ds_map, columns=["complete_event_file", "audio_segment_file", "features_file", "class"])
     for row in audio_info_df.values:
         get_features(gen_file_names_tuple(row), ds_map_df[ds_map_df["complete_event_file"] == row[0]], win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst)
     ds_map_df_fn = dest_path + "data_set_map" + TAB_EXT
@@ -332,7 +383,7 @@ def extract_features_serial(audio_info_df, dest_path, win_size=1024, hop_size=51
 def extract_features_parallel(audio_info_df, dest_path, n, win_size=1024, hop_size=512, norm="mean", zero_out=True, sil_subst="mean"):
     tmp_ds_map = list(map(lambda x: gen_feat_file_names(x[0], x[1]), audio_info_df[["complete_event_file", "segment_boundaries_df"]].values))
     tmp_ds_map = reduce(lambda x, y: x + y, tmp_ds_map)
-    ds_map_df = pd.DataFrame(data=tmp_ds_map, columns=["complete_event_file", "segment_boundaries_df", "features_file"])
+    ds_map_df = pd.DataFrame(data=tmp_ds_map, columns=["complete_event_file", "segment_boundaries_df", "features_file", "class"])
     Parallel(n_jobs=n, backend="threading")(delayed(get_features)(gen_file_names_tuple(x), ds_map_df[ds_map_df["complete_event_file"] == x[0]], win_size=win_size, hop_size=hop_size, norm=norm, zero_out=zero_out, sil_subst=sil_subst) for x in audio_info_df.values)
     ds_map_df_fn = dest_path + "data_set_map" + TAB_EXT
     ds_map_df.to_csv(ds_map_df_fn, index=False)
